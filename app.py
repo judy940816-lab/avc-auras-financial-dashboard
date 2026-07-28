@@ -234,77 +234,76 @@ with tab_summary:
     latest = prof_view[prof_view["year"].eq(latest_year)].copy()
 
     st.subheader(f"{latest_year} Snapshot")
+
     if latest.empty:
         st.info("No profitability records match the current filters.")
     else:
         # Entity selector：限制寬度，不要橫跨整個頁面
-selector_col, spacer_col = st.columns([1, 3])
+        selector_col, spacer_col = st.columns([1, 3])
 
-with selector_col:
-    display_entity = st.selectbox(
-        "Entity",
-        options=sorted(latest["entity"].unique()),
-        key="summary_entity",
-    )
+        with selector_col:
+            display_entity = st.selectbox(
+                "Entity",
+                options=sorted(latest["entity"].unique()),
+                key="summary_entity",
+            )
 
-kpi = latest[latest["entity"].eq(display_entity)].iloc[0]
+        kpi = latest[latest["entity"].eq(display_entity)].iloc[0]
 
-liq_kpi = liq_view[
-    liq_view["entity"].eq(display_entity)
-    & liq_view["year"].eq(latest_year)
-]
+        liq_kpi = liq_view[
+            liq_view["entity"].eq(display_entity)
+            & liq_view["year"].eq(latest_year)
+        ]
 
-# 第一排：營運與獲利
-st.markdown("#### Performance")
+        # 第一排：營運與獲利
+        st.markdown("#### Performance")
+        row1 = st.columns(4, gap="large")
 
-row1 = st.columns(4, gap="large")
+        row1[0].metric(
+            "Revenue",
+            f"NT${kpi['Revenue'] / 1_000_000:,.1f} bn",
+        )
+        row1[1].metric(
+            "Gross Margin",
+            f"{kpi['gross_margin']:.2%}",
+        )
+        row1[2].metric(
+            "Operating Margin",
+            f"{kpi['operating_margin']:.2%}",
+        )
+        row1[3].metric(
+            "Net Margin (Parent)",
+            f"{kpi['net_margin_parent']:.2%}",
+        )
 
-row1[0].metric(
-    "Revenue",
-    f"NT${kpi['Revenue'] / 1_000_000:,.1f} bn",
-)
-row1[1].metric(
-    "Gross Margin",
-    f"{kpi['gross_margin']:.2%}",
-)
-row1[2].metric(
-    "Operating Margin",
-    f"{kpi['operating_margin']:.2%}",
-)
-row1[3].metric(
-    "Net Margin (Parent)",
-    f"{kpi['net_margin_parent']:.2%}",
-)
+        # 第二排：每股盈餘與流動性
+        st.markdown("#### Per-share & Liquidity")
+        row2 = st.columns(4, gap="large")
 
-# 第二排：每股盈餘與流動性
-st.markdown("#### Per-share & Liquidity")
+        row2[0].metric(
+            "Basic EPS",
+            f"NT${kpi['Basic EPS']:.2f}",
+        )
 
-row2 = st.columns(4, gap="large")
+        if not liq_kpi.empty:
+            liq_row = liq_kpi.iloc[0]
 
-row2[0].metric(
-    "Basic EPS",
-    f"NT${kpi['Basic EPS']:.2f}",
-)
-
-if not liq_kpi.empty:
-    liq_row = liq_kpi.iloc[0]
-
-    row2[1].metric(
-        "Current Ratio",
-        f"{liq_row['current_ratio']:.2f}",
-    )
-    row2[2].metric(
-        "Quick Ratio",
-        f"{liq_row['quick_ratio']:.2f}",
-    )
-    row2[3].metric(
-        "Cash Ratio",
-        f"{liq_row['cash_ratio']:.2f}",
-    )
-else:
-    row2[1].metric("Current Ratio", "N/A")
-    row2[2].metric("Quick Ratio", "N/A")
-    row2[3].metric("Cash Ratio", "N/A")
+            row2[1].metric(
+                "Current Ratio",
+                f"{liq_row['current_ratio']:.2f}",
+            )
+            row2[2].metric(
+                "Quick Ratio",
+                f"{liq_row['quick_ratio']:.2f}",
+            )
+            row2[3].metric(
+                "Cash Ratio",
+                f"{liq_row['cash_ratio']:.2f}",
+            )
+        else:
+            row2[1].metric("Current Ratio", "N/A")
+            row2[2].metric("Quick Ratio", "N/A")
+            row2[3].metric("Cash Ratio", "N/A")
 
         st.subheader("Automated Trend Insight")
         st.info(
@@ -321,7 +320,11 @@ else:
         color="year",
         barmode="group",
         text_auto=".3s",
-        labels={"entity": "Entity", "Revenue": "Revenue (NT$ thousand)", "year": "Year"},
+        labels={
+            "entity": "Entity",
+            "Revenue": "Revenue (NT$ thousand)",
+            "year": "Year",
+        },
     )
     revenue_chart.update_layout(legend_title_text="Year")
     st.plotly_chart(revenue_chart, use_container_width=True)
