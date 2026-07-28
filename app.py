@@ -6,7 +6,7 @@ import streamlit as st
 
 
 APP_DIR = Path(__file__).resolve().parent
-DATA_FILE = APP_DIR / "data" / "AVC_Auras_dashboard_data.xlsx"
+DATA_FILE = APP_DIR / "AVC_Auras_dashboard_data.xlsx"
 
 st.set_page_config(
     page_title="AVC vs. Auras Financial Dashboard",
