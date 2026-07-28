@@ -13,7 +13,29 @@ st.set_page_config(
     page_icon="📊",
     layout="wide",
 )
+st.markdown(
+    """
+    <style>
+    div[data-testid="stMetric"] {
+        background-color: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        padding: 18px 20px;
+        border-radius: 12px;
+        min-height: 135px;
+    }
 
+    div[data-testid="stMetricLabel"] {
+        font-size: 0.95rem;
+        color: #475569;
+    }
+
+    div[data-testid="stMetricValue"] {
+        font-size: 2rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 @st.cache_data
 def load_raw_data() -> pd.DataFrame:
@@ -215,30 +237,74 @@ with tab_summary:
     if latest.empty:
         st.info("No profitability records match the current filters.")
     else:
-        display_entity = st.selectbox(
-            "Entity for KPI cards",
-            options=sorted(latest["entity"].unique()),
-            key="summary_entity",
-        )
-        kpi = latest[latest["entity"].eq(display_entity)].iloc[0]
-        liq_kpi = liq_view[
-            liq_view["entity"].eq(display_entity)
-            & liq_view["year"].eq(latest_year)
-        ]
+        # Entity selector：限制寬度，不要橫跨整個頁面
+selector_col, spacer_col = st.columns([1, 3])
 
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Revenue", f"NT${kpi['Revenue'] / 1_000_000:,.1f} bn")
-        c2.metric("Gross Margin", f"{kpi['gross_margin']:.2%}")
-        c3.metric("Operating Margin", f"{kpi['operating_margin']:.2%}")
-        c4.metric("Net Margin (Parent)", f"{kpi['net_margin_parent']:.2%}")
-        c5.metric("Basic EPS", f"NT${kpi['Basic EPS']:.2f}")
+with selector_col:
+    display_entity = st.selectbox(
+        "Entity",
+        options=sorted(latest["entity"].unique()),
+        key="summary_entity",
+    )
 
-        if not liq_kpi.empty:
-            q1, q2, q3 = st.columns(3)
-            liq_row = liq_kpi.iloc[0]
-            q1.metric("Current Ratio", f"{liq_row['current_ratio']:.2f}")
-            q2.metric("Quick Ratio", f"{liq_row['quick_ratio']:.2f}")
-            q3.metric("Cash Ratio", f"{liq_row['cash_ratio']:.2f}")
+kpi = latest[latest["entity"].eq(display_entity)].iloc[0]
+
+liq_kpi = liq_view[
+    liq_view["entity"].eq(display_entity)
+    & liq_view["year"].eq(latest_year)
+]
+
+# 第一排：營運與獲利
+st.markdown("#### Performance")
+
+row1 = st.columns(4, gap="large")
+
+row1[0].metric(
+    "Revenue",
+    f"NT${kpi['Revenue'] / 1_000_000:,.1f} bn",
+)
+row1[1].metric(
+    "Gross Margin",
+    f"{kpi['gross_margin']:.2%}",
+)
+row1[2].metric(
+    "Operating Margin",
+    f"{kpi['operating_margin']:.2%}",
+)
+row1[3].metric(
+    "Net Margin (Parent)",
+    f"{kpi['net_margin_parent']:.2%}",
+)
+
+# 第二排：每股盈餘與流動性
+st.markdown("#### Per-share & Liquidity")
+
+row2 = st.columns(4, gap="large")
+
+row2[0].metric(
+    "Basic EPS",
+    f"NT${kpi['Basic EPS']:.2f}",
+)
+
+if not liq_kpi.empty:
+    liq_row = liq_kpi.iloc[0]
+
+    row2[1].metric(
+        "Current Ratio",
+        f"{liq_row['current_ratio']:.2f}",
+    )
+    row2[2].metric(
+        "Quick Ratio",
+        f"{liq_row['quick_ratio']:.2f}",
+    )
+    row2[3].metric(
+        "Cash Ratio",
+        f"{liq_row['cash_ratio']:.2f}",
+    )
+else:
+    row2[1].metric("Current Ratio", "N/A")
+    row2[2].metric("Quick Ratio", "N/A")
+    row2[3].metric("Cash Ratio", "N/A")
 
         st.subheader("Automated Trend Insight")
         st.info(
