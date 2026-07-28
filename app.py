@@ -32,6 +32,93 @@ st.markdown(
     div[data-testid="stMetricValue"] {
         font-size: 2rem;
     }
+
+    .research-shell {
+        background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%);
+        border: 1px solid #DCE7F5;
+        border-radius: 16px;
+        padding: 24px 26px;
+        margin: 14px 0 20px 0;
+    }
+
+    .research-kicker {
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: #2563EB;
+        margin-bottom: 8px;
+    }
+
+    .research-title {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: #0F172A;
+        margin-bottom: 8px;
+    }
+
+    .research-objective {
+        font-size: 1rem;
+        line-height: 1.7;
+        color: #334155;
+        max-width: 1100px;
+    }
+
+    .research-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+    }
+
+    .research-chip {
+        display: inline-block;
+        background-color: #FFFFFF;
+        border: 1px solid #CBD5E1;
+        border-radius: 999px;
+        padding: 5px 10px;
+        font-size: 0.82rem;
+        color: #475569;
+    }
+
+    .question-card {
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 14px;
+        padding: 18px 18px 16px 18px;
+        min-height: 205px;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .question-number {
+        display: inline-block;
+        background-color: #DBEAFE;
+        color: #1D4ED8;
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 0.76rem;
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+
+    .question-text {
+        font-size: 1rem;
+        font-weight: 650;
+        line-height: 1.5;
+        color: #0F172A;
+        margin-bottom: 12px;
+    }
+
+    .question-measure {
+        font-size: 0.84rem;
+        line-height: 1.5;
+        color: #64748B;
+    }
+
+    .design-note {
+        font-size: 0.82rem;
+        color: #64748B;
+        margin-top: 10px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -224,6 +311,91 @@ st.caption(
     "Standalone vs. consolidated analysis and peer benchmarking, FY 2024–2025. "
     "All ratios are recalculated from the raw financial statement data in Python."
 )
+
+
+st.markdown(
+    """
+    <div class="research-shell">
+        <div class="research-kicker">RESEARCH FRAMEWORK</div>
+        <div class="research-title">Project Objective</div>
+        <div class="research-objective">
+            This project examines whether AVC's rapid FY 2025 growth translated into
+            stronger profitability without weakening short-term liquidity. It combines
+            year-over-year analysis, standalone-versus-consolidated comparison, and peer
+            benchmarking against Auras to identify group-level performance differences
+            and decision-relevant financial signals.
+        </div>
+        <div class="research-meta">
+            <span class="research-chip">Period: FY 2024–2025</span>
+            <span class="research-chip">Primary firm: AVC</span>
+            <span class="research-chip">Peer benchmark: Auras</span>
+            <span class="research-chip">Source: Audited financial statements</span>
+            <span class="research-chip">Method: Python-recalculated ratios</span>
+        </div>
+        <div class="design-note">
+            Research design: descriptive and comparative analysis. Reported relationships
+            should be interpreted as financial associations rather than causal effects.
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown("### Research Questions")
+rq1, rq2, rq3 = st.columns(3, gap="large")
+
+with rq1:
+    st.markdown(
+        """
+        <div class="question-card">
+            <div class="question-number">RQ1</div>
+            <div class="question-text">
+                Did AVC's revenue growth translate into stronger profitability?
+            </div>
+            <div class="question-measure">
+                Evaluated through revenue growth, gross-margin expansion,
+                operating-margin expansion, net-margin change, and EPS.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with rq2:
+    st.markdown(
+        """
+        <div class="question-card">
+            <div class="question-number">RQ2</div>
+            <div class="question-text">
+                Did rapid expansion weaken AVC's short-term liquidity position?
+            </div>
+            <div class="question-measure">
+                Evaluated through current ratio, quick ratio, cash ratio,
+                and net working capital relative to total assets.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with rq3:
+    st.markdown(
+        """
+        <div class="question-card">
+            <div class="question-number">RQ3</div>
+            <div class="question-text">
+                What do standalone–consolidated differences and peer comparison reveal?
+            </div>
+            <div class="question-measure">
+                Compares AVC standalone with AVC consolidated results and benchmarks
+                both against Auras to identify group-level and peer-positioning gaps.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+st.markdown("<br>", unsafe_allow_html=True)
 
 tab_summary, tab_liquidity, tab_profitability, tab_sources = st.tabs(
     ["Executive Summary", "Liquidity", "Profitability", "Source Data"]
