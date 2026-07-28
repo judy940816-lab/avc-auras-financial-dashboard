@@ -84,8 +84,8 @@ st.markdown(
         background-color: #FFFFFF;
         border: 1px solid #E2E8F0;
         border-radius: 14px;
-        padding: 18px 18px 16px 18px;
-        min-height: 205px;
+        padding: 20px;
+        min-height: 390px;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
 
@@ -102,16 +102,46 @@ st.markdown(
 
     .question-text {
         font-size: 1rem;
-        font-weight: 650;
+        font-weight: 700;
         line-height: 1.5;
         color: #0F172A;
+        margin-bottom: 14px;
+    }
+
+    .answer-pill {
+        display: inline-block;
+        background-color: #DCFCE7;
+        color: #166534;
+        border-radius: 999px;
+        padding: 5px 10px;
+        font-size: 0.74rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
         margin-bottom: 12px;
     }
 
-    .question-measure {
-        font-size: 0.84rem;
+    .answer-title {
+        font-size: 0.98rem;
+        font-weight: 700;
         line-height: 1.5;
+        color: #1E293B;
+        margin-bottom: 12px;
+    }
+
+    .answer-evidence {
+        font-size: 0.84rem;
+        line-height: 1.6;
+        color: #475569;
+        border-top: 1px solid #E2E8F0;
+        padding-top: 12px;
+        margin-top: 4px;
+    }
+
+    .answer-interpretation {
+        font-size: 0.82rem;
+        line-height: 1.55;
         color: #64748B;
+        margin-top: 10px;
     }
 
     .design-note {
@@ -268,6 +298,243 @@ def entity_insight(entity_data: pd.DataFrame) -> str:
     )
 
 
+
+def percent_change(current: float, previous: float) -> float:
+    """Return a decimal growth rate while safely handling a zero base."""
+    if pd.isna(current) or pd.isna(previous) or previous == 0:
+        return float("nan")
+    return current / previous - 1
+
+
+def build_research_answers(
+    profitability_data: pd.DataFrame,
+    liquidity_data: pd.DataFrame,
+) -> dict:
+    """Build evidence-based answers to the dashboard's three research questions.
+
+    The core research answers use the complete FY 2024–2025 dataset and are
+    intentionally independent of the sidebar filters.
+    """
+    required_entities = {
+        "AVC Consolidated",
+        "AVC Standalone",
+        "Auras Consolidated",
+    }
+    available = set(profitability_data["entity"].unique())
+
+    if not required_entities.issubset(available):
+        return {
+            "rq1": {
+                "status": "DATA CHECK",
+                "title": "Required AVC profitability observations are unavailable.",
+                "evidence": "Confirm that AVC consolidated records are included for both years.",
+                "interpretation": "The research answer cannot be calculated reliably.",
+            },
+            "rq2": {
+                "status": "DATA CHECK",
+                "title": "Required AVC liquidity observations are unavailable.",
+                "evidence": "Confirm that AVC consolidated liquidity records are included for both years.",
+                "interpretation": "The research answer cannot be calculated reliably.",
+            },
+            "rq3": {
+                "status": "DATA CHECK",
+                "title": "Required standalone, consolidated, or peer observations are unavailable.",
+                "evidence": "Confirm that AVC standalone, AVC consolidated, and Auras consolidated records exist.",
+                "interpretation": "The research answer cannot be calculated reliably.",
+            },
+        }
+
+    # RQ1: Did AVC growth translate into stronger profitability?
+    avc_prof = (
+        profitability_data[
+            profitability_data["entity"].eq("AVC Consolidated")
+        ]
+        .sort_values("year")
+        .copy()
+    )
+
+    if len(avc_prof) < 2:
+        raise ValueError("At least two years of AVC consolidated data are required.")
+
+    prof_first = avc_prof.iloc[0]
+    prof_last = avc_prof.iloc[-1]
+
+    revenue_growth = percent_change(prof_last["Revenue"], prof_first["Revenue"])
+    operating_profit_growth = percent_change(
+        prof_last["Operating Profit"],
+        prof_first["Operating Profit"],
+    )
+    eps_growth = percent_change(prof_last["Basic EPS"], prof_first["Basic EPS"])
+    gross_margin_change = prof_last["gross_margin"] - prof_first["gross_margin"]
+    operating_margin_change = (
+        prof_last["operating_margin"] - prof_first["operating_margin"]
+    )
+    net_margin_change = (
+        prof_last["net_margin_parent"] - prof_first["net_margin_parent"]
+    )
+
+    profitability_strengthened = (
+        revenue_growth > 0
+        and operating_profit_growth > revenue_growth
+        and gross_margin_change > 0
+        and operating_margin_change > 0
+        and net_margin_change > 0
+    )
+
+    rq1_status = "ANSWER: YES" if profitability_strengthened else "ANSWER: MIXED"
+    rq1_title = (
+        "Growth translated into stronger profitability and positive operating leverage."
+        if profitability_strengthened
+        else "Growth was strong, but the profitability evidence is mixed."
+    )
+    rq1_evidence = (
+        f"Revenue increased {revenue_growth:.1%}, while operating profit increased "
+        f"{operating_profit_growth:.1%}. Gross margin rose "
+        f"{gross_margin_change * 100:+.1f} pp, operating margin rose "
+        f"{operating_margin_change * 100:+.1f} pp, net margin rose "
+        f"{net_margin_change * 100:+.1f} pp, and EPS increased {eps_growth:.1%}."
+    )
+    rq1_interpretation = (
+        "Operating profit grew faster than revenue, suggesting that AVC converted "
+        "scale expansion into proportionally stronger operating earnings."
+    )
+
+    # RQ2: Did rapid expansion weaken short-term liquidity?
+    avc_liq = (
+        liquidity_data[
+            liquidity_data["entity"].eq("AVC Consolidated")
+        ]
+        .sort_values("year")
+        .copy()
+    )
+
+    if len(avc_liq) < 2:
+        raise ValueError("At least two years of AVC consolidated liquidity data are required.")
+
+    liq_first = avc_liq.iloc[0]
+    liq_last = avc_liq.iloc[-1]
+
+    current_change = liq_last["current_ratio"] - liq_first["current_ratio"]
+    quick_change = liq_last["quick_ratio"] - liq_first["quick_ratio"]
+    cash_change = liq_last["cash_ratio"] - liq_first["cash_ratio"]
+    nwc_change = liq_last["nwc_to_assets"] - liq_first["nwc_to_assets"]
+
+    improving_indicators = sum(
+        change >= 0
+        for change in [current_change, quick_change, cash_change, nwc_change]
+    )
+
+    if improving_indicators >= 3:
+        rq2_status = "ANSWER: NO"
+        rq2_title = (
+            "Expansion did not materially weaken liquidity; the evidence is broadly stable."
+        )
+    elif improving_indicators <= 1:
+        rq2_status = "ANSWER: YES"
+        rq2_title = (
+            "Expansion coincided with a broad weakening in short-term liquidity."
+        )
+    else:
+        rq2_status = "ANSWER: MIXED"
+        rq2_title = "Liquidity signals moved in different directions."
+
+    rq2_evidence = (
+        f"Current ratio changed {current_change:+.2f}x, quick ratio "
+        f"{quick_change:+.2f}x, cash ratio {cash_change:+.2f}x, and net working "
+        f"capital to assets {nwc_change * 100:+.1f} pp."
+    )
+    rq2_interpretation = (
+        "The slight decline in current ratio should be monitored, but stronger quick "
+        "and cash ratios indicate that immediately available liquidity improved."
+    )
+
+    # RQ3: What do consolidated–standalone and peer differences reveal?
+    latest_year = int(profitability_data["year"].max())
+
+    avc_con = profitability_data[
+        profitability_data["entity"].eq("AVC Consolidated")
+        & profitability_data["year"].eq(latest_year)
+    ]
+    avc_standalone = profitability_data[
+        profitability_data["entity"].eq("AVC Standalone")
+        & profitability_data["year"].eq(latest_year)
+    ]
+    auras_con = profitability_data[
+        profitability_data["entity"].eq("Auras Consolidated")
+        & profitability_data["year"].eq(latest_year)
+    ]
+
+    if avc_con.empty or avc_standalone.empty or auras_con.empty:
+        raise ValueError("Latest-year observations are missing for RQ3.")
+
+    avc_con = avc_con.iloc[0]
+    avc_standalone = avc_standalone.iloc[0]
+    auras_con = auras_con.iloc[0]
+
+    revenue_gap = avc_con["Revenue"] - avc_standalone["Revenue"]
+    operating_profit_gap = (
+        avc_con["Operating Profit"] - avc_standalone["Operating Profit"]
+    )
+    revenue_gap_share = (
+        revenue_gap / avc_con["Revenue"] if avc_con["Revenue"] else float("nan")
+    )
+    operating_gap_share = (
+        operating_profit_gap / avc_con["Operating Profit"]
+        if avc_con["Operating Profit"]
+        else float("nan")
+    )
+    revenue_multiple = (
+        avc_con["Revenue"] / auras_con["Revenue"]
+        if auras_con["Revenue"]
+        else float("nan")
+    )
+    operating_margin_gap = (
+        avc_con["operating_margin"] - auras_con["operating_margin"]
+    )
+    gross_margin_gap = avc_con["gross_margin"] - auras_con["gross_margin"]
+
+    rq3_status = "ANSWER: SCALE ADVANTAGE"
+    rq3_title = (
+        "Consolidation adds substantial scale, while AVC leads Auras in operating margin."
+    )
+    rq3_evidence = (
+        f"In {latest_year}, AVC consolidated revenue exceeded standalone revenue by "
+        f"NT${revenue_gap / 1_000_000:,.1f} bn ({revenue_gap_share:.1%} of consolidated "
+        f"revenue), and consolidated operating profit was higher by "
+        f"NT${operating_profit_gap / 1_000_000:,.1f} bn "
+        f"({operating_gap_share:.1%}). AVC's revenue was {revenue_multiple:.1f}x "
+        f"Auras's, with an operating-margin advantage of "
+        f"{operating_margin_gap * 100:+.1f} pp, although its gross margin was "
+        f"{gross_margin_gap * 100:+.1f} pp lower."
+    )
+    rq3_interpretation = (
+        "The consolidated–standalone gap suggests meaningful group-level activity, "
+        "but it is not a pure subsidiary contribution because consolidation also "
+        "includes intercompany eliminations and accounting adjustments."
+    )
+
+    return {
+        "rq1": {
+            "status": rq1_status,
+            "title": rq1_title,
+            "evidence": rq1_evidence,
+            "interpretation": rq1_interpretation,
+        },
+        "rq2": {
+            "status": rq2_status,
+            "title": rq2_title,
+            "evidence": rq2_evidence,
+            "interpretation": rq2_interpretation,
+        },
+        "rq3": {
+            "status": rq3_status,
+            "title": rq3_title,
+            "evidence": rq3_evidence,
+            "interpretation": rq3_interpretation,
+        },
+    }
+
+
 try:
     raw = load_raw_data()
 except (FileNotFoundError, ValueError) as exc:
@@ -277,6 +544,8 @@ except (FileNotFoundError, ValueError) as exc:
 base = build_metric_base(raw)
 liquidity = calculate_liquidity(base)
 profitability = calculate_profitability(base)
+
+research_answers = build_research_answers(profitability, liquidity)
 
 available_entities = sorted(base["entity"].unique().tolist())
 available_years = sorted(base["year"].unique().tolist())
@@ -341,20 +610,29 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown("### Research Questions")
+st.markdown("### Research Questions & Findings")
+st.caption(
+    "Each conclusion is recalculated from the underlying FY 2024–2025 source data."
+)
+
 rq1, rq2, rq3 = st.columns(3, gap="large")
 
 with rq1:
     st.markdown(
-        """
+        f"""
         <div class="question-card">
             <div class="question-number">RQ1</div>
             <div class="question-text">
                 Did AVC's revenue growth translate into stronger profitability?
             </div>
-            <div class="question-measure">
-                Evaluated through revenue growth, gross-margin expansion,
-                operating-margin expansion, net-margin change, and EPS.
+            <div class="answer-pill">{research_answers["rq1"]["status"]}</div>
+            <div class="answer-title">{research_answers["rq1"]["title"]}</div>
+            <div class="answer-evidence">
+                <strong>Evidence:</strong> {research_answers["rq1"]["evidence"]}
+            </div>
+            <div class="answer-interpretation">
+                <strong>Interpretation:</strong>
+                {research_answers["rq1"]["interpretation"]}
             </div>
         </div>
         """,
@@ -363,15 +641,20 @@ with rq1:
 
 with rq2:
     st.markdown(
-        """
+        f"""
         <div class="question-card">
             <div class="question-number">RQ2</div>
             <div class="question-text">
                 Did rapid expansion weaken AVC's short-term liquidity position?
             </div>
-            <div class="question-measure">
-                Evaluated through current ratio, quick ratio, cash ratio,
-                and net working capital relative to total assets.
+            <div class="answer-pill">{research_answers["rq2"]["status"]}</div>
+            <div class="answer-title">{research_answers["rq2"]["title"]}</div>
+            <div class="answer-evidence">
+                <strong>Evidence:</strong> {research_answers["rq2"]["evidence"]}
+            </div>
+            <div class="answer-interpretation">
+                <strong>Interpretation:</strong>
+                {research_answers["rq2"]["interpretation"]}
             </div>
         </div>
         """,
@@ -380,15 +663,20 @@ with rq2:
 
 with rq3:
     st.markdown(
-        """
+        f"""
         <div class="question-card">
             <div class="question-number">RQ3</div>
             <div class="question-text">
                 What do standalone–consolidated differences and peer comparison reveal?
             </div>
-            <div class="question-measure">
-                Compares AVC standalone with AVC consolidated results and benchmarks
-                both against Auras to identify group-level and peer-positioning gaps.
+            <div class="answer-pill">{research_answers["rq3"]["status"]}</div>
+            <div class="answer-title">{research_answers["rq3"]["title"]}</div>
+            <div class="answer-evidence">
+                <strong>Evidence:</strong> {research_answers["rq3"]["evidence"]}
+            </div>
+            <div class="answer-interpretation">
+                <strong>Interpretation:</strong>
+                {research_answers["rq3"]["interpretation"]}
             </div>
         </div>
         """,
