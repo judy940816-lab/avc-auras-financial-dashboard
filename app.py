@@ -814,59 +814,6 @@ st.caption(
 )
 
 
-st.markdown(
-    dedent(
-        """
-        <div class="research-shell">
-        <div class="research-kicker">RESEARCH FRAMEWORK</div>
-
-        <div class="research-title">Research Motivation</div>
-        <div class="research-objective">
-            This project originated from a classroom financial statement analysis
-            comparing AVC and Auras for FY 2023–2024. To extend the original assignment
-            into a more complete and reproducible research project, I updated the dataset
-            to FY 2024–2025, rebuilt the financial analysis in Python, and developed an
-            interactive dashboard. This extension allows the earlier findings to be
-            reassessed using the latest annual data while incorporating profitability,
-            liquidity, standalone-versus-consolidated differences, and peer benchmarking.
-        </div>
-
-        <div style="height: 18px;"></div>
-
-        <div class="research-title">Project Objective</div>
-        <div class="research-objective">
-            This project examines whether AVC's rapid FY 2025 growth translated into
-            stronger profitability, resilient short-term liquidity, and improved cash
-            generation. It combines year-over-year analysis, standalone-versus-consolidated
-            comparison, peer benchmarking against Auras, and cash-flow-quality analysis
-            to identify decision-relevant financial signals.
-        </div>
-        <div class="research-meta">
-            <span class="research-chip">Period: FY 2024–2025</span>
-            <span class="research-chip">Primary firm: AVC</span>
-            <span class="research-chip">Peer benchmark: Auras</span>
-            <span class="research-chip">Source: Audited financial statements</span>
-            <span class="research-chip">Method: Python-recalculated ratios</span>
-        </div>
-        <div class="design-note">
-            Research design: descriptive and comparative analysis. Reported relationships
-            should be interpreted as financial associations rather than causal effects.
-        </div>
-        </div>
-        """
-    ),
-    unsafe_allow_html=True,
-)
-
-st.markdown("### Prior Questions Revisited: FY 2024–2025 Update")
-st.info(
-    "The FY 2023–2024 classroom report did not present formal research "
-    "questions. The questions below reconstruct its central analytical issues "
-    "from the prior conclusions and reassess them using FY 2024–2025 evidence. "
-    "They should therefore be treated as inferred questions rather than "
-    "verbatim questions from the original report."
-)
-
 def get_prior_status(question_key: str) -> tuple[str, str]:
     """Translate a calculated answer into a prior-question status label."""
 
@@ -941,88 +888,8 @@ def render_prior_question(
         st.write(updated_interpretation)
 
 
-prior_row1_col1, prior_row1_col2 = st.columns(2, gap="large")
-
-with prior_row1_col1:
-    render_prior_question(
-        number="PRIOR QUESTION 1",
-        question="Would AVC's profitability improvement continue beyond FY 2024?",
-        prior_finding=(
-            "Revenue, margins, and EPS improved, but the prior report noted "
-            "that long-term earnings stability still required monitoring."
-        ),
-        current_evidence=research_answers["rq1"]["evidence"],
-        status=rq1_prior_status,
-        status_class=rq1_prior_class,
-        updated_interpretation=research_answers["rq1"]["interpretation"],
-    )
-
-with prior_row1_col2:
-    render_prior_question(
-        number="PRIOR QUESTION 2",
-        question="Would rapid expansion continue to weaken short-term liquidity?",
-        prior_finding=(
-            "Current, quick, cash, and net-working-capital ratios declined, "
-            "indicating tighter liquidity and higher working-capital pressure."
-        ),
-        current_evidence=research_answers["rq2"]["evidence"],
-        status=rq2_prior_status,
-        status_class=rq2_prior_class,
-        updated_interpretation=(
-            research_answers["rq2"]["interpretation"]
-            + " Cash-flow conversion improved substantially, reducing concerns "
-            "about immediate liquidity pressure. However, inventory turnover "
-            "and receivables turnover are still required to determine whether "
-            "working-capital efficiency also improved."
-        ),
-    )
-
-prior_row2_col1, prior_row2_col2 = st.columns(2, gap="large")
-
-with prior_row2_col1:
-    render_prior_question(
-        number="PRIOR QUESTION 3",
-        question=(
-            "Would standalone–consolidated differences remain economically meaningful?"
-        ),
-        prior_finding=(
-            "The group showed greater operating scale, while consolidated "
-            "efficiency and financing characteristics differed from the "
-            "standalone entity."
-        ),
-        current_evidence=research_answers["rq3"]["evidence"],
-        status=rq3_prior_status,
-        status_class=rq3_prior_class,
-        updated_interpretation=(
-            research_answers["rq3"]["interpretation"]
-            + " The current evidence confirms material group-level scale, "
-            "but does not isolate subsidiary operating efficiency."
-        ),
-    )
-
-with prior_row2_col2:
-    render_prior_question(
-        number="PRIOR QUESTION 4",
-        question="Did rapid growth convert into stable operating cash flow?",
-        prior_finding=(
-            "The prior report identified cash conversion—not accounting "
-            "profitability—as the central sustainability risk, particularly "
-            "as inventory, receivables, and expansion spending increased."
-        ),
-        current_evidence=research_answers["rq4"]["evidence"],
-        status=rq4_prior_status,
-        status_class=rq4_prior_class,
-        updated_interpretation=research_answers["rq4"]["interpretation"],
-    )
-
-st.caption(
-    "Interpretive note: 'Confirmed' means the new evidence is directionally "
-    "consistent with the prior finding; it does not imply causal proof."
-)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
 (
+    tab_research,
     tab_summary,
     tab_liquidity,
     tab_profitability,
@@ -1030,6 +897,7 @@ st.markdown("<br>", unsafe_allow_html=True)
     tab_sources,
 ) = st.tabs(
     [
+        "Research Overview",
         "Executive Summary",
         "Liquidity",
         "Profitability",
@@ -1037,6 +905,146 @@ st.markdown("<br>", unsafe_allow_html=True)
         "Source Data",
     ]
 )
+
+
+with tab_research:
+    st.markdown(
+        dedent(
+            """
+            <div class="research-shell">
+                <div class="research-kicker">RESEARCH FRAMEWORK</div>
+
+                <div class="research-title">Research Motivation</div>
+                <div class="research-objective">
+                    This project originated from a classroom financial statement analysis
+                    comparing AVC and Auras for FY 2023–2024. To extend the original
+                    assignment into a more complete and reproducible research project, I
+                    updated the dataset to FY 2024–2025, rebuilt the financial analysis in
+                    Python, and developed an interactive dashboard. This extension allows
+                    the earlier findings to be reassessed using the latest annual data while
+                    incorporating profitability, liquidity, standalone-versus-consolidated
+                    differences, and peer benchmarking.
+                </div>
+
+                <div style="height: 18px;"></div>
+
+                <div class="research-title">Project Objective</div>
+                <div class="research-objective">
+                    This project examines whether AVC's rapid FY 2025 growth translated
+                    into stronger profitability, resilient short-term liquidity, and
+                    improved cash generation. It combines year-over-year analysis,
+                    standalone-versus-consolidated comparison, peer benchmarking against
+                    Auras, and cash-flow-quality analysis to identify decision-relevant
+                    financial signals.
+                </div>
+
+                <div class="research-meta">
+                    <span class="research-chip">Period: FY 2024–2025</span>
+                    <span class="research-chip">Primary firm: AVC</span>
+                    <span class="research-chip">Peer benchmark: Auras</span>
+                    <span class="research-chip">Source: Audited financial statements</span>
+                    <span class="research-chip">Method: Python-recalculated ratios</span>
+                </div>
+
+                <div class="design-note">
+                    Research design: descriptive and comparative analysis. Reported
+                    relationships should be interpreted as financial associations rather
+                    than causal effects.
+                </div>
+            </div>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### Prior Questions Revisited: FY 2024–2025 Update")
+    st.info(
+        "The FY 2023–2024 classroom report did not present formal research "
+        "questions. The questions below reconstruct its central analytical "
+        "issues from the prior conclusions and reassess them using FY 2024–2025 "
+        "evidence. They should therefore be treated as inferred questions rather "
+        "than verbatim questions from the original report."
+    )
+
+    prior_row1_col1, prior_row1_col2 = st.columns(2, gap="large")
+
+    with prior_row1_col1:
+        render_prior_question(
+            number="PRIOR QUESTION 1",
+            question="Would AVC's profitability improvement continue beyond FY 2024?",
+            prior_finding=(
+                "Revenue, margins, and EPS improved, but the prior report noted "
+                "that long-term earnings stability still required monitoring."
+            ),
+            current_evidence=research_answers["rq1"]["evidence"],
+            status=rq1_prior_status,
+            status_class=rq1_prior_class,
+            updated_interpretation=research_answers["rq1"]["interpretation"],
+        )
+
+    with prior_row1_col2:
+        render_prior_question(
+            number="PRIOR QUESTION 2",
+            question="Would rapid expansion continue to weaken short-term liquidity?",
+            prior_finding=(
+                "Current, quick, cash, and net-working-capital ratios declined, "
+                "indicating tighter liquidity and higher working-capital pressure."
+            ),
+            current_evidence=research_answers["rq2"]["evidence"],
+            status=rq2_prior_status,
+            status_class=rq2_prior_class,
+            updated_interpretation=(
+                research_answers["rq2"]["interpretation"]
+                + " Cash-flow conversion improved substantially, reducing concerns "
+                "about immediate liquidity pressure. However, inventory turnover "
+                "and receivables turnover are still required to determine whether "
+                "working-capital efficiency also improved."
+            ),
+        )
+
+    prior_row2_col1, prior_row2_col2 = st.columns(2, gap="large")
+
+    with prior_row2_col1:
+        render_prior_question(
+            number="PRIOR QUESTION 3",
+            question=(
+                "Would standalone–consolidated differences remain economically meaningful?"
+            ),
+            prior_finding=(
+                "The group showed greater operating scale, while consolidated "
+                "efficiency and financing characteristics differed from the "
+                "standalone entity."
+            ),
+            current_evidence=research_answers["rq3"]["evidence"],
+            status=rq3_prior_status,
+            status_class=rq3_prior_class,
+            updated_interpretation=(
+                research_answers["rq3"]["interpretation"]
+                + " The current evidence confirms material group-level scale, "
+                "but does not isolate subsidiary operating efficiency."
+            ),
+        )
+
+    with prior_row2_col2:
+        render_prior_question(
+            number="PRIOR QUESTION 4",
+            question="Did rapid growth convert into stable operating cash flow?",
+            prior_finding=(
+                "The prior report identified cash conversion—not accounting "
+                "profitability—as the central sustainability risk, particularly "
+                "as inventory, receivables, and expansion spending increased."
+            ),
+            current_evidence=research_answers["rq4"]["evidence"],
+            status=rq4_prior_status,
+            status_class=rq4_prior_class,
+            updated_interpretation=research_answers["rq4"]["interpretation"],
+        )
+
+    st.caption(
+        "Interpretive note: 'Confirmed' means the new evidence is directionally "
+        "consistent with the prior finding; it does not imply causal proof."
+    )
+
 
 with tab_summary:
     latest_year = max(selected_years)
