@@ -1,4 +1,5 @@
 from pathlib import Path
+from textwrap import dedent
 
 import pandas as pd
 import plotly.express as px
@@ -583,8 +584,9 @@ st.caption(
 
 
 st.markdown(
-    """
-    <div class="research-shell">
+    dedent(
+        """
+        <div class="research-shell">
         <div class="research-kicker">RESEARCH FRAMEWORK</div>
 
         <div class="research-title">Research Motivation</div>
@@ -619,8 +621,9 @@ st.markdown(
             Research design: descriptive and comparative analysis. Reported relationships
             should be interpreted as financial associations rather than causal effects.
         </div>
-    </div>
-    """,
+        </div>
+        """
+    ),
     unsafe_allow_html=True,
 )
 
