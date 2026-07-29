@@ -394,6 +394,212 @@ def format_change(value: float, suffix: str = "") -> str:
     return f"{sign}{value:.2f}{suffix}"
 
 
+
+def format_growth_delta(current: float, previous: float) -> str | None:
+    """Format a year-over-year percentage change for st.metric."""
+    change = percent_change(current, previous)
+    if pd.isna(change):
+        return None
+    return f"{change:+.1%} YoY"
+
+
+def format_pp_delta(current: float, previous: float) -> str | None:
+    """Format a margin change in percentage points."""
+    if pd.isna(current) or pd.isna(previous):
+        return None
+    return f"{(current - previous) * 100:+.1f} pp"
+
+
+def format_ratio_delta(current: float, previous: float) -> str | None:
+    """Format a ratio change in x units."""
+    if pd.isna(current) or pd.isna(previous):
+        return None
+    return f"{current - previous:+.2f}x"
+
+
+def build_validation_report(
+    raw_data: pd.DataFrame,
+) -> tuple[dict, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Validate uniqueness, completeness, module coverage, and traceability."""
+
+    data = raw_data.copy()
+    data["entity"] = data["company"] + " " + data["scope"]
+
+    key_columns = ["company", "scope", "year", "account"]
+    duplicate_mask = data.duplicated(key_columns, keep=False)
+    duplicate_rows = data.loc[duplicate_mask].sort_values(key_columns)
+
+    required_fields = [
+        "company",
+        "scope",
+        "year",
+        "statement",
+        "account",
+        "value",
+        "unit",
+        "source_page",
+        "source_file",
+    ]
+    missing_field_mask = pd.Series(False, index=data.index)
+    for column in required_fields:
+        if column in ["year", "value"]:
+            missing_field_mask |= data[column].isna()
+        else:
+            normalized = data[column].astype(str).str.strip().str.lower()
+            missing_field_mask |= normalized.isin(["", "nan", "none"])
+
+    trace_page = (
+        data["source_page"].astype(str).str.strip().str.lower()
+        .map(lambda value: value not in {"", "nan", "none"})
+    )
+    trace_file = (
+        data["source_file"].astype(str).str.strip().str.lower()
+        .map(lambda value: value not in {"", "nan", "none"})
+    )
+    traceable_mask = trace_page & trace_file
+
+    module_requirements = {
+        "Liquidity": {
+            "Current Assets",
+            "Current Liabilities",
+            "Cash and Cash Equivalents",
+            "Total Assets",
+            "Inventory",
+            "Other Current Assets",
+        },
+        "Profitability": {
+            "Revenue",
+            "Gross Profit",
+            "Operating Profit",
+            "Net Income Attributable to Parent",
+            "Basic EPS",
+        },
+    }
+    cash_flow_requirements = {
+        "Operating Cash Flow",
+        "Capital Expenditure",
+        "Net Income",
+        "Accounts Receivable",
+    }
+
+    coverage_rows = []
+    for (entity, year), group in data.groupby(["entity", "year"], sort=True):
+        accounts = set(group["account"])
+
+        row = {"entity": entity, "year": int(year)}
+        for module, required_accounts in module_requirements.items():
+            missing_accounts = sorted(required_accounts.difference(accounts))
+            row[module] = (
+                "Passed"
+                if not missing_accounts
+                else "Missing: " + ", ".join(missing_accounts)
+            )
+
+        if entity == "AVC Consolidated":
+            missing_cash = sorted(cash_flow_requirements.difference(accounts))
+            row["Cash Flow Quality"] = (
+                "Passed"
+                if not missing_cash
+                else "Missing: " + ", ".join(missing_cash)
+            )
+        else:
+            row["Cash Flow Quality"] = "Not applicable"
+
+        coverage_rows.append(row)
+
+    coverage = pd.DataFrame(coverage_rows)
+    coverage_failures = coverage[
+        coverage[["Liquidity", "Profitability", "Cash Flow Quality"]]
+        .apply(
+            lambda row: any(
+                str(value).startswith("Missing:")
+                for value in row
+            ),
+            axis=1,
+        )
+    ]
+
+    source_rows = []
+    for (entity, source_file), group in data.groupby(
+        ["entity", "source_file"],
+        sort=True,
+    ):
+        pages = sorted(
+            set(group["source_page"].astype(str)),
+            key=lambda value: (
+                int("".join(character for character in value if character.isdigit()) or 0),
+                value,
+            ),
+        )
+        years = sorted(group["year"].unique().tolist())
+        source_rows.append(
+            {
+                "entity": entity,
+                "source_file": source_file,
+                "years": ", ".join(str(year) for year in years),
+                "pages": ", ".join(pages),
+                "records": len(group),
+            }
+        )
+    source_coverage = pd.DataFrame(source_rows)
+
+    summary = {
+        "total_records": len(data),
+        "duplicate_records": int(duplicate_mask.sum()),
+        "missing_required_values": int(missing_field_mask.sum()),
+        "traceable_records": int(traceable_mask.sum()),
+        "traceability_rate": float(traceable_mask.mean()) if len(data) else 0.0,
+        "coverage_failures": len(coverage_failures),
+    }
+    summary["passed"] = (
+        summary["duplicate_records"] == 0
+        and summary["missing_required_values"] == 0
+        and summary["coverage_failures"] == 0
+        and summary["traceability_rate"] == 1.0
+    )
+
+    return summary, coverage, duplicate_rows, source_coverage
+
+
+def build_source_reference(
+    raw_data: pd.DataFrame,
+    entity_accounts: dict[str, list[str]],
+) -> str:
+    """Return a compact source-file and page reference for a finding."""
+
+    data = raw_data.copy()
+    data["entity"] = data["company"] + " " + data["scope"]
+    references = []
+
+    for entity, accounts in entity_accounts.items():
+        rows = data[
+            data["entity"].eq(entity)
+            & data["account"].isin(accounts)
+        ]
+        for source_file, group in rows.groupby("source_file", sort=True):
+            pages = sorted(
+                set(group["source_page"].astype(str)),
+                key=lambda value: (
+                    int(
+                        "".join(
+                            character
+                            for character in value
+                            if character.isdigit()
+                        )
+                        or 0
+                    ),
+                    value,
+                ),
+            )
+            references.append(
+                f"{source_file} ({', '.join(pages)})"
+            )
+
+    if not references:
+        return "Source traceability unavailable."
+    return "Source: " + "; ".join(dict.fromkeys(references))
+
+
 def entity_insight(entity_data: pd.DataFrame) -> str:
     ordered = entity_data.sort_values("year")
     if len(ordered) < 2:
@@ -775,6 +981,62 @@ research_answers = build_research_answers(
     cash_flow_quality,
 )
 
+
+(
+    validation_summary,
+    validation_coverage,
+    validation_duplicates,
+    source_coverage,
+) = build_validation_report(raw)
+
+rq1_source = build_source_reference(
+    raw,
+    {
+        "AVC Consolidated": [
+            "Revenue",
+            "Gross Profit",
+            "Operating Profit",
+            "Net Income Attributable to Parent",
+            "Basic EPS",
+        ]
+    },
+)
+rq2_source = build_source_reference(
+    raw,
+    {
+        "AVC Consolidated": [
+            "Current Assets",
+            "Current Liabilities",
+            "Cash and Cash Equivalents",
+            "Inventory",
+            "Prepayments",
+            "Other Current Assets",
+            "Total Assets",
+        ]
+    },
+)
+rq3_source = build_source_reference(
+    raw,
+    {
+        "AVC Consolidated": ["Revenue", "Operating Profit", "Gross Profit"],
+        "AVC Standalone": ["Revenue", "Operating Profit", "Gross Profit"],
+        "Auras Consolidated": ["Revenue", "Operating Profit", "Gross Profit"],
+    },
+)
+rq4_source = build_source_reference(
+    raw,
+    {
+        "AVC Consolidated": [
+            "Operating Cash Flow",
+            "Capital Expenditure",
+            "Net Income",
+            "Revenue",
+            "Inventory",
+            "Accounts Receivable",
+        ]
+    },
+)
+
 available_entities = sorted(base["entity"].unique().tolist())
 available_years = sorted(base["year"].unique().tolist())
 
@@ -865,6 +1127,7 @@ def render_prior_question(
     status: str,
     status_class: str,
     updated_interpretation: str,
+    source_note: str,
     final_label: str = "UPDATED INTERPRETATION",
 ) -> None:
     """Render one prior-question card using native Streamlit components."""
@@ -886,6 +1149,7 @@ def render_prior_question(
 
         st.markdown(f"##### {final_label}")
         st.write(updated_interpretation)
+        st.caption(source_note)
 
 
 (
@@ -894,6 +1158,7 @@ def render_prior_question(
     tab_liquidity,
     tab_profitability,
     tab_cash_flow,
+    tab_methodology,
     tab_sources,
 ) = st.tabs(
     [
@@ -902,6 +1167,7 @@ def render_prior_question(
         "Liquidity",
         "Profitability",
         "Cash Flow Quality",
+        "Methodology & Validation",
         "Source Data",
     ]
 )
@@ -971,6 +1237,7 @@ with tab_research:
             status=rq1_prior_status,
             status_class=rq1_prior_class,
             updated_interpretation=research_answers["rq1"]["interpretation"],
+            source_note=rq1_source,
         )
 
     with prior_row1_col2:
@@ -991,6 +1258,7 @@ with tab_research:
                 "and receivables turnover are still required to determine whether "
                 "working-capital efficiency also improved."
             ),
+            source_note=rq2_source,
         )
 
     prior_row2_col1, prior_row2_col2 = st.columns(2, gap="large")
@@ -1014,6 +1282,7 @@ with tab_research:
                 + " The current evidence confirms material group-level scale, "
                 "but does not isolate subsidiary operating efficiency."
             ),
+            source_note=rq3_source,
         )
 
     with prior_row2_col2:
@@ -1029,12 +1298,30 @@ with tab_research:
             status=rq4_prior_status,
             status_class=rq4_prior_class,
             updated_interpretation=research_answers["rq4"]["interpretation"],
+            source_note=rq4_source,
         )
 
     st.caption(
         "Interpretive note: 'Confirmed' means the new evidence is directionally "
         "consistent with the prior finding; it does not imply causal proof."
     )
+
+    with st.expander("Limitations and interpretation boundaries"):
+        st.markdown(
+            """
+            - The analysis covers only FY 2024–2025, so the results should not be
+              treated as a long-term trend.
+            - Auras is the primary peer benchmark; one peer cannot represent the
+              entire thermal-management industry.
+            - The consolidated-minus-standalone gap is not a pure subsidiary
+              contribution because consolidation includes intercompany eliminations
+              and accounting adjustments.
+            - The findings are descriptive financial associations and do not establish
+              causal effects.
+            - Capital expenditure is approximated by cash paid to acquire property,
+              plant and equipment.
+            """
+        )
 
 
 with tab_summary:
@@ -1046,7 +1333,6 @@ with tab_summary:
     if latest.empty:
         st.info("No profitability records match the current filters.")
     else:
-        # Entity selector：限制寬度，不要橫跨整個頁面
         selector_col, spacer_col = st.columns([1, 3])
 
         with selector_col:
@@ -1058,39 +1344,93 @@ with tab_summary:
 
         kpi = latest[latest["entity"].eq(display_entity)].iloc[0]
 
-        liq_kpi = liq_view[
-            liq_view["entity"].eq(display_entity)
-            & liq_view["year"].eq(latest_year)
-        ]
+        prof_history = (
+            profitability[profitability["entity"].eq(display_entity)]
+            .sort_values("year")
+            .copy()
+        )
+        previous_prof = prof_history[prof_history["year"].lt(latest_year)]
+        previous_kpi = previous_prof.iloc[-1] if not previous_prof.empty else None
 
-        # 第一排：營運與獲利
+        liq_kpi = liquidity[
+            liquidity["entity"].eq(display_entity)
+            & liquidity["year"].eq(latest_year)
+        ]
+        liq_history = (
+            liquidity[liquidity["entity"].eq(display_entity)]
+            .sort_values("year")
+            .copy()
+        )
+        previous_liq_data = liq_history[liq_history["year"].lt(latest_year)]
+        previous_liq = (
+            previous_liq_data.iloc[-1]
+            if not previous_liq_data.empty
+            else None
+        )
+
         st.markdown("#### Performance")
         row1 = st.columns(4, gap="large")
 
         row1[0].metric(
             "Revenue",
             f"NT${kpi['Revenue'] / 1_000_000:,.1f} bn",
+            delta=(
+                format_growth_delta(kpi["Revenue"], previous_kpi["Revenue"])
+                if previous_kpi is not None
+                else None
+            ),
         )
         row1[1].metric(
             "Gross Margin",
             f"{kpi['gross_margin']:.2%}",
+            delta=(
+                format_pp_delta(
+                    kpi["gross_margin"],
+                    previous_kpi["gross_margin"],
+                )
+                if previous_kpi is not None
+                else None
+            ),
         )
         row1[2].metric(
             "Operating Margin",
             f"{kpi['operating_margin']:.2%}",
+            delta=(
+                format_pp_delta(
+                    kpi["operating_margin"],
+                    previous_kpi["operating_margin"],
+                )
+                if previous_kpi is not None
+                else None
+            ),
         )
         row1[3].metric(
             "Net Margin (Parent)",
             f"{kpi['net_margin_parent']:.2%}",
+            delta=(
+                format_pp_delta(
+                    kpi["net_margin_parent"],
+                    previous_kpi["net_margin_parent"],
+                )
+                if previous_kpi is not None
+                else None
+            ),
         )
 
-        # 第二排：每股盈餘與流動性
         st.markdown("#### Per-share & Liquidity")
         row2 = st.columns(4, gap="large")
 
         row2[0].metric(
             "Basic EPS",
             f"NT${kpi['Basic EPS']:.2f}",
+            delta=(
+                format_growth_delta(
+                    kpi["Basic EPS"],
+                    previous_kpi["Basic EPS"],
+                )
+                if previous_kpi is not None
+                else None
+            ),
         )
 
         if not liq_kpi.empty:
@@ -1099,26 +1439,73 @@ with tab_summary:
             row2[1].metric(
                 "Current Ratio",
                 f"{liq_row['current_ratio']:.2f}",
+                delta=(
+                    format_ratio_delta(
+                        liq_row["current_ratio"],
+                        previous_liq["current_ratio"],
+                    )
+                    if previous_liq is not None
+                    else None
+                ),
             )
             row2[2].metric(
                 "Quick Ratio",
                 f"{liq_row['quick_ratio']:.2f}",
+                delta=(
+                    format_ratio_delta(
+                        liq_row["quick_ratio"],
+                        previous_liq["quick_ratio"],
+                    )
+                    if previous_liq is not None
+                    else None
+                ),
             )
             row2[3].metric(
                 "Cash Ratio",
                 f"{liq_row['cash_ratio']:.2f}",
+                delta=(
+                    format_ratio_delta(
+                        liq_row["cash_ratio"],
+                        previous_liq["cash_ratio"],
+                    )
+                    if previous_liq is not None
+                    else None
+                ),
             )
         else:
             row2[1].metric("Current Ratio", "N/A")
             row2[2].metric("Quick Ratio", "N/A")
             row2[3].metric("Cash Ratio", "N/A")
 
-        st.subheader("Automated Trend Insight")
-        st.info(
-            entity_insight(
-                liq_view[liq_view["entity"].eq(display_entity)]
+        st.subheader("Decision Memo")
+        memo_profit, memo_liquidity, memo_cash = st.columns(3, gap="large")
+
+        with memo_profit:
+            st.success(
+                "**Profitability**\n\n"
+                + research_answers["rq1"]["title"]
             )
-        )
+            st.caption(rq1_source)
+
+        with memo_liquidity:
+            st.info(
+                "**Liquidity**\n\n"
+                + research_answers["rq2"]["title"]
+            )
+            st.caption(rq2_source)
+
+        with memo_cash:
+            if research_answers["rq4"]["status"] == "ANSWER: YES":
+                st.success(
+                    "**Cash Flow**\n\n"
+                    + research_answers["rq4"]["title"]
+                )
+            else:
+                st.warning(
+                    "**Cash Flow**\n\n"
+                    + research_answers["rq4"]["title"]
+                )
+            st.caption(rq4_source)
 
     st.subheader("Revenue Comparison")
     revenue_chart = px.bar(
@@ -1293,24 +1680,62 @@ with tab_cash_flow:
             .copy()
         )
         latest_cash = cash_entity_data.iloc[-1]
+        previous_cash = (
+            cash_entity_data.iloc[-2]
+            if len(cash_entity_data) >= 2
+            else None
+        )
 
         cash_kpis = st.columns(4, gap="large")
         cash_kpis[0].metric(
             "Operating Cash Flow",
             f"NT${latest_cash['Operating Cash Flow'] / 1_000_000:,.1f} bn",
+            delta=(
+                format_growth_delta(
+                    latest_cash["Operating Cash Flow"],
+                    previous_cash["Operating Cash Flow"],
+                )
+                if previous_cash is not None
+                else None
+            ),
         )
         cash_kpis[1].metric(
             "Free Cash Flow",
             f"NT${latest_cash['free_cash_flow'] / 1_000_000:,.1f} bn",
+            delta=(
+                format_growth_delta(
+                    latest_cash["free_cash_flow"],
+                    previous_cash["free_cash_flow"],
+                )
+                if previous_cash is not None
+                else None
+            ),
         )
         cash_kpis[2].metric(
             "Cash Conversion Ratio",
             f"{latest_cash['cash_conversion_ratio']:.2f}x",
+            delta=(
+                format_ratio_delta(
+                    latest_cash["cash_conversion_ratio"],
+                    previous_cash["cash_conversion_ratio"],
+                )
+                if previous_cash is not None
+                else None
+            ),
         )
         cash_kpis[3].metric(
             "Free Cash Flow Margin",
             f"{latest_cash['free_cash_flow_margin']:.1%}",
+            delta=(
+                format_pp_delta(
+                    latest_cash["free_cash_flow_margin"],
+                    previous_cash["free_cash_flow_margin"],
+                )
+                if previous_cash is not None
+                else None
+            ),
         )
+        st.caption(rq4_source)
 
         flow_long = cash_entity_data[
             [
@@ -1442,6 +1867,154 @@ with tab_cash_flow:
         )
 
 
+with tab_methodology:
+    st.subheader("Methodology & Data Validation")
+    st.caption(
+        "This page documents how the financial statements were converted into "
+        "a reproducible analytical dataset and verifies whether the required "
+        "records are complete, unique, and traceable."
+    )
+
+    st.markdown("### Reproducible Data Pipeline")
+    pipeline_columns = st.columns(4, gap="large")
+
+    pipeline_steps = [
+        (
+            "1. Source Collection",
+            "Audited standalone and consolidated financial statements.",
+        ),
+        (
+            "2. Account Mapping",
+            "Financial statement line items mapped into consistent account names.",
+        ),
+        (
+            "3. Long-form Database",
+            "Company, scope, year, statement, account, value, unit, page, and file.",
+        ),
+        (
+            "4. Python Analysis",
+            "Ratios, growth rates, cash-flow quality, charts, and research findings.",
+        ),
+    ]
+
+    for column, (title, description) in zip(pipeline_columns, pipeline_steps):
+        with column:
+            with st.container(border=True):
+                st.markdown(f"**{title}**")
+                st.write(description)
+
+    st.markdown("### Validation Summary")
+    validation_metrics = st.columns(4, gap="large")
+    validation_metrics[0].metric(
+        "Records Loaded",
+        f"{validation_summary['total_records']:,}",
+    )
+    validation_metrics[1].metric(
+        "Duplicate Records",
+        f"{validation_summary['duplicate_records']:,}",
+        delta=(
+            "Passed"
+            if validation_summary["duplicate_records"] == 0
+            else "Review required"
+        ),
+        delta_color=(
+            "off"
+            if validation_summary["duplicate_records"] == 0
+            else "inverse"
+        ),
+    )
+    validation_metrics[2].metric(
+        "Missing Required Values",
+        f"{validation_summary['missing_required_values']:,}",
+        delta=(
+            "Passed"
+            if validation_summary["missing_required_values"] == 0
+            else "Review required"
+        ),
+        delta_color=(
+            "off"
+            if validation_summary["missing_required_values"] == 0
+            else "inverse"
+        ),
+    )
+    validation_metrics[3].metric(
+        "Source Traceability",
+        f"{validation_summary['traceability_rate']:.0%}",
+        delta=(
+            "Passed"
+            if validation_summary["traceability_rate"] == 1.0
+            else "Incomplete"
+        ),
+        delta_color=(
+            "off"
+            if validation_summary["traceability_rate"] == 1.0
+            else "inverse"
+        ),
+    )
+
+    if validation_summary["passed"]:
+        st.success(
+            "Validation status: PASSED. Core module accounts are available, "
+            "records are unique, required values are complete, and all records "
+            "retain source-file and source-page references."
+        )
+    else:
+        st.warning(
+            "Validation status: REVIEW REQUIRED. Inspect the coverage and "
+            "duplicate-record tables below."
+        )
+
+    st.markdown("### Entity–Year Module Coverage")
+    st.dataframe(
+        validation_coverage,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    if not validation_duplicates.empty:
+        with st.expander("Duplicate records requiring review"):
+            st.dataframe(
+                validation_duplicates,
+                use_container_width=True,
+                hide_index=True,
+            )
+
+    st.markdown("### Source Coverage")
+    st.dataframe(
+        source_coverage,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    with st.expander("Core formulas and calculation definitions"):
+        st.markdown(
+            """
+            **Liquidity**
+            - Current Ratio = Current Assets / Current Liabilities
+            - Quick Ratio = (Current Assets − Inventory − Prepayments − Other
+              Current Assets) / Current Liabilities
+            - Cash Ratio = Cash and Cash Equivalents / Current Liabilities
+            - NWC / Assets = (Current Assets − Current Liabilities) / Total Assets
+
+            **Profitability**
+            - Gross Margin = Gross Profit / Revenue
+            - Operating Margin = Operating Profit / Revenue
+            - Net Margin (Parent) = Net Income Attributable to Parent / Revenue
+
+            **Cash-flow quality**
+            - Cash Conversion Ratio = Operating Cash Flow / Net Income
+            - Free Cash Flow = Operating Cash Flow − Capital Expenditure
+            - Free Cash Flow Margin = Free Cash Flow / Revenue
+            """
+        )
+
+    st.info(
+        "Reproducibility note: the app reads only the raw_financials worksheet "
+        "and recalculates all analytical metrics in Python. It does not rely on "
+        "Excel formula caches."
+    )
+
+
 with tab_sources:
     st.subheader("Raw Financial Statement Data")
     source_view = raw[
@@ -1452,5 +2025,7 @@ with tab_sources:
     st.dataframe(source_view, use_container_width=True, hide_index=True)
     st.caption(
         "Unit is preserved from the source table. Most financial statement values "
-        "are in NT$ thousand; EPS is in NT$ per share."
+        "are in NT$ thousand; EPS is in NT$ per share. The source_page and "
+        "source_file columns provide record-level traceability to the audited "
+        "financial statements."
     )
