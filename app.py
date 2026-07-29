@@ -347,6 +347,44 @@ def calculate_profitability(base: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def calculate_cash_flow_quality(base: pd.DataFrame) -> pd.DataFrame:
+    """Calculate cash-conversion and free-cash-flow metrics.
+
+    Capital Expenditure is stored as a positive cash-outflow amount in the
+    source data, so free cash flow is Operating Cash Flow minus Capex.
+    """
+    required_accounts = [
+        "Operating Cash Flow",
+        "Capital Expenditure",
+        "Net Income",
+        "Revenue",
+        "Inventory",
+        "Accounts Receivable",
+    ]
+    result = base.copy()
+    for account in required_accounts:
+        if account not in result.columns:
+            result[account] = 0.0
+
+    result["free_cash_flow"] = (
+        result["Operating Cash Flow"] - result["Capital Expenditure"]
+    )
+    result["cash_conversion_ratio"] = safe_divide(
+        result["Operating Cash Flow"], result["Net Income"]
+    )
+    result["free_cash_flow_margin"] = safe_divide(
+        result["free_cash_flow"], result["Revenue"]
+    )
+
+    # Only keep entity-years for which cash-flow data were provided.
+    available = (
+        result["Operating Cash Flow"].ne(0)
+        | result["Capital Expenditure"].ne(0)
+        | result["Net Income"].ne(0)
+    )
+    return result[available].copy()
+
+
 def format_change(value: float, suffix: str = "") -> str:
     if pd.isna(value):
         return "N/A"
@@ -388,8 +426,9 @@ def percent_change(current: float, previous: float) -> float:
 def build_research_answers(
     profitability_data: pd.DataFrame,
     liquidity_data: pd.DataFrame,
+    cash_flow_data: pd.DataFrame,
 ) -> dict:
-    """Build evidence-based answers to the dashboard's three research questions.
+    """Build evidence-based answers to the dashboard's research questions.
 
     The core research answers use the complete FY 2024–2025 dataset and are
     intentionally independent of the sidebar filters.
@@ -419,6 +458,12 @@ def build_research_answers(
                 "status": "DATA CHECK",
                 "title": "Required standalone, consolidated, or peer observations are unavailable.",
                 "evidence": "Confirm that AVC standalone, AVC consolidated, and Auras consolidated records exist.",
+                "interpretation": "The research answer cannot be calculated reliably.",
+            },
+            "rq4": {
+                "status": "DATA CHECK",
+                "title": "Required cash-flow observations are unavailable.",
+                "evidence": "Confirm that AVC consolidated cash-flow records are included for both years.",
                 "interpretation": "The research answer cannot be calculated reliably.",
             },
         }
@@ -592,6 +637,95 @@ def build_research_answers(
         "includes intercompany eliminations and accounting adjustments."
     )
 
+    # RQ4: Did rapid growth convert into stable operating cash flow?
+    avc_cash = (
+        cash_flow_data[
+            cash_flow_data["entity"].eq("AVC Consolidated")
+        ]
+        .sort_values("year")
+        .copy()
+    )
+
+    if len(avc_cash) < 2:
+        rq4_status = "DATA CHECK"
+        rq4_title = "Two years of AVC consolidated cash-flow data are required."
+        rq4_evidence = (
+            "Operating cash flow, capital expenditure, and net income must be "
+            "available for FY 2024 and FY 2025."
+        )
+        rq4_interpretation = (
+            "The cash-conversion question cannot yet be evaluated reliably."
+        )
+    else:
+        cash_first = avc_cash.iloc[0]
+        cash_last = avc_cash.iloc[-1]
+
+        net_income_growth = percent_change(
+            cash_last["Net Income"], cash_first["Net Income"]
+        )
+        ocf_growth = percent_change(
+            cash_last["Operating Cash Flow"],
+            cash_first["Operating Cash Flow"],
+        )
+        inventory_growth = percent_change(
+            cash_last["Inventory"], cash_first["Inventory"]
+        )
+        receivables_growth = percent_change(
+            cash_last["Accounts Receivable"],
+            cash_first["Accounts Receivable"],
+        )
+        revenue_cash_growth = percent_change(
+            cash_last["Revenue"], cash_first["Revenue"]
+        )
+        conversion_change = (
+            cash_last["cash_conversion_ratio"]
+            - cash_first["cash_conversion_ratio"]
+        )
+        fcf_margin_change = (
+            cash_last["free_cash_flow_margin"]
+            - cash_first["free_cash_flow_margin"]
+        )
+
+        cash_conversion_strengthened = (
+            cash_last["Operating Cash Flow"] > 0
+            and cash_last["free_cash_flow"] > 0
+            and ocf_growth > net_income_growth
+            and conversion_change > 0
+            and fcf_margin_change > 0
+            and inventory_growth < revenue_cash_growth
+            and receivables_growth < revenue_cash_growth
+        )
+
+        rq4_status = (
+            "ANSWER: YES"
+            if cash_conversion_strengthened
+            else "ANSWER: MIXED"
+        )
+        rq4_title = (
+            "Growth converted into substantially stronger operating and free cash flow."
+            if cash_conversion_strengthened
+            else "Cash generation improved, but the evidence is not uniformly strong."
+        )
+        rq4_evidence = (
+            f"Operating cash flow increased {ocf_growth:.1%}, compared with "
+            f"net income growth of {net_income_growth:.1%}. Cash conversion "
+            f"improved from {cash_first['cash_conversion_ratio']:.2f}x to "
+            f"{cash_last['cash_conversion_ratio']:.2f}x. Free cash flow rose "
+            f"from NT${cash_first['free_cash_flow'] / 1_000_000:,.1f} bn to "
+            f"NT${cash_last['free_cash_flow'] / 1_000_000:,.1f} bn, while its "
+            f"margin increased {fcf_margin_change * 100:+.1f} pp. Inventory "
+            f"grew {inventory_growth:.1%} and receivables grew "
+            f"{receivables_growth:.1%}, both below revenue growth of "
+            f"{revenue_cash_growth:.1%}."
+        )
+        rq4_interpretation = (
+            "The 2025 results indicate that accounting earnings were converted "
+            "into cash more effectively, even after expansion-related capital "
+            "spending. The conclusion remains descriptive because it covers only "
+            "two annual observations, and capex is approximated by cash paid to "
+            "acquire property, plant and equipment."
+        )
+
     return {
         "rq1": {
             "status": rq1_status,
@@ -611,6 +745,12 @@ def build_research_answers(
             "evidence": rq3_evidence,
             "interpretation": rq3_interpretation,
         },
+        "rq4": {
+            "status": rq4_status,
+            "title": rq4_title,
+            "evidence": rq4_evidence,
+            "interpretation": rq4_interpretation,
+        },
     }
 
 
@@ -623,8 +763,13 @@ except (FileNotFoundError, ValueError) as exc:
 base = build_metric_base(raw)
 liquidity = calculate_liquidity(base)
 profitability = calculate_profitability(base)
+cash_flow_quality = calculate_cash_flow_quality(base)
 
-research_answers = build_research_answers(profitability, liquidity)
+research_answers = build_research_answers(
+    profitability,
+    liquidity,
+    cash_flow_quality,
+)
 
 available_entities = sorted(base["entity"].unique().tolist())
 available_years = sorted(base["year"].unique().tolist())
@@ -652,6 +797,10 @@ liq_view = liquidity[
 prof_view = profitability[
     profitability["entity"].isin(selected_entities)
     & profitability["year"].isin(selected_years)
+].copy()
+cash_view = cash_flow_quality[
+    cash_flow_quality["entity"].isin(selected_entities)
+    & cash_flow_quality["year"].isin(selected_years)
 ].copy()
 
 st.title("AVC vs. Auras Financial Decision Dashboard")
@@ -683,10 +832,10 @@ st.markdown(
         <div class="research-title">Project Objective</div>
         <div class="research-objective">
             This project examines whether AVC's rapid FY 2025 growth translated into
-            stronger profitability without weakening short-term liquidity. It combines
-            year-over-year analysis, standalone-versus-consolidated comparison, and peer
-            benchmarking against Auras to identify group-level performance differences
-            and decision-relevant financial signals.
+            stronger profitability, resilient short-term liquidity, and improved cash
+            generation. It combines year-over-year analysis, standalone-versus-consolidated
+            comparison, peer benchmarking against Auras, and cash-flow-quality analysis
+            to identify decision-relevant financial signals.
         </div>
         <div class="research-meta">
             <span class="research-chip">Period: FY 2024–2025</span>
@@ -710,72 +859,58 @@ st.caption(
     "Each conclusion is recalculated from the underlying FY 2024–2025 source data."
 )
 
-rq1, rq2, rq3 = st.columns(3, gap="large")
 
-with rq1:
-    st.markdown(
-        f"""
-        <div class="question-card">
-            <div class="question-number">RQ1</div>
-            <div class="question-text">
-                Did AVC's revenue growth translate into stronger profitability?
-            </div>
-            <div class="answer-pill">{research_answers["rq1"]["status"]}</div>
-            <div class="answer-title">{research_answers["rq1"]["title"]}</div>
-            <div class="answer-evidence">
-                <strong>Evidence:</strong> {research_answers["rq1"]["evidence"]}
-            </div>
-            <div class="answer-interpretation">
-                <strong>Interpretation:</strong>
-                {research_answers["rq1"]["interpretation"]}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+def render_research_finding(
+    number: str,
+    question: str,
+    answer: dict,
+) -> None:
+    """Render one research finding using native Streamlit components."""
+
+    with st.container(border=True):
+        st.markdown(f"**{number}**")
+        st.markdown(f"#### {question}")
+        st.markdown(
+            f'<span class="answer-pill">{answer["status"]}</span>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(f"**{answer['title']}**")
+        st.markdown("##### EVIDENCE")
+        st.write(answer["evidence"])
+        st.markdown("##### INTERPRETATION")
+        st.write(answer["interpretation"])
+
+
+rq_row1_col1, rq_row1_col2 = st.columns(2, gap="large")
+
+with rq_row1_col1:
+    render_research_finding(
+        "RQ1",
+        "Did AVC's revenue growth translate into stronger profitability?",
+        research_answers["rq1"],
     )
 
-with rq2:
-    st.markdown(
-        f"""
-        <div class="question-card">
-            <div class="question-number">RQ2</div>
-            <div class="question-text">
-                Did rapid expansion weaken AVC's short-term liquidity position?
-            </div>
-            <div class="answer-pill">{research_answers["rq2"]["status"]}</div>
-            <div class="answer-title">{research_answers["rq2"]["title"]}</div>
-            <div class="answer-evidence">
-                <strong>Evidence:</strong> {research_answers["rq2"]["evidence"]}
-            </div>
-            <div class="answer-interpretation">
-                <strong>Interpretation:</strong>
-                {research_answers["rq2"]["interpretation"]}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+with rq_row1_col2:
+    render_research_finding(
+        "RQ2",
+        "Did rapid expansion weaken AVC's short-term liquidity position?",
+        research_answers["rq2"],
     )
 
-with rq3:
-    st.markdown(
-        f"""
-        <div class="question-card">
-            <div class="question-number">RQ3</div>
-            <div class="question-text">
-                What do standalone–consolidated differences and peer comparison reveal?
-            </div>
-            <div class="answer-pill">{research_answers["rq3"]["status"]}</div>
-            <div class="answer-title">{research_answers["rq3"]["title"]}</div>
-            <div class="answer-evidence">
-                <strong>Evidence:</strong> {research_answers["rq3"]["evidence"]}
-            </div>
-            <div class="answer-interpretation">
-                <strong>Interpretation:</strong>
-                {research_answers["rq3"]["interpretation"]}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+rq_row2_col1, rq_row2_col2 = st.columns(2, gap="large")
+
+with rq_row2_col1:
+    render_research_finding(
+        "RQ3",
+        "What do standalone–consolidated differences and peer comparison reveal?",
+        research_answers["rq3"],
+    )
+
+with rq_row2_col2:
+    render_research_finding(
+        "RQ4",
+        "Did AVC's rapid growth convert into stronger operating cash flow?",
+        research_answers["rq4"],
     )
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -886,19 +1021,10 @@ with prior_row2_col2:
             "profitability—as the central sustainability risk, particularly "
             "as inventory, receivables, and expansion spending increased."
         ),
-        current_evidence=(
-            "This question cannot yet be tested with the current dashboard "
-            "because the dataset does not include operating cash flow, capital "
-            "expenditure, free cash flow, receivables turnover, or inventory turnover."
-        ),
-        status="NOT YET TESTED",
-        status_class="prior-gap",
-        updated_interpretation=(
-            "Add a Cash Flow Quality & Working Capital module to test whether "
-            "earnings growth is being converted into cash and whether inventory "
-            "accumulation remains manageable."
-        ),
-        final_label="NEXT RESEARCH EXTENSION",
+        current_evidence=research_answers["rq4"]["evidence"],
+        status="CONFIRMED & STRENGTHENED",
+        status_class="prior-confirmed",
+        updated_interpretation=research_answers["rq4"]["interpretation"],
     )
 
 st.caption(
@@ -908,8 +1034,20 @@ st.caption(
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-tab_summary, tab_liquidity, tab_profitability, tab_sources = st.tabs(
-    ["Executive Summary", "Liquidity", "Profitability", "Source Data"]
+(
+    tab_summary,
+    tab_liquidity,
+    tab_profitability,
+    tab_cash_flow,
+    tab_sources,
+) = st.tabs(
+    [
+        "Executive Summary",
+        "Liquidity",
+        "Profitability",
+        "Cash Flow Quality",
+        "Source Data",
+    ]
 )
 
 with tab_summary:
@@ -1140,6 +1278,182 @@ with tab_profitability:
         use_container_width=True,
         hide_index=True,
     )
+
+with tab_cash_flow:
+    st.subheader("Cash Flow Quality")
+    st.caption(
+        "This module evaluates whether AVC's accounting earnings converted into "
+        "operating cash and free cash flow. Capital expenditure is approximated "
+        "by cash paid to acquire property, plant and equipment."
+    )
+
+    if cash_view.empty:
+        st.info(
+            "No cash-flow records match the current filters. Select AVC Consolidated "
+            "and at least one available year."
+        )
+    else:
+        cash_entities = sorted(cash_view["entity"].unique())
+        cash_entity = st.selectbox(
+            "Entity",
+            options=cash_entities,
+            key="cash_flow_entity",
+        )
+
+        cash_entity_data = (
+            cash_view[cash_view["entity"].eq(cash_entity)]
+            .sort_values("year")
+            .copy()
+        )
+        latest_cash = cash_entity_data.iloc[-1]
+
+        cash_kpis = st.columns(4, gap="large")
+        cash_kpis[0].metric(
+            "Operating Cash Flow",
+            f"NT${latest_cash['Operating Cash Flow'] / 1_000_000:,.1f} bn",
+        )
+        cash_kpis[1].metric(
+            "Free Cash Flow",
+            f"NT${latest_cash['free_cash_flow'] / 1_000_000:,.1f} bn",
+        )
+        cash_kpis[2].metric(
+            "Cash Conversion Ratio",
+            f"{latest_cash['cash_conversion_ratio']:.2f}x",
+        )
+        cash_kpis[3].metric(
+            "Free Cash Flow Margin",
+            f"{latest_cash['free_cash_flow_margin']:.1%}",
+        )
+
+        flow_long = cash_entity_data[
+            [
+                "year",
+                "Net Income",
+                "Operating Cash Flow",
+                "Capital Expenditure",
+                "free_cash_flow",
+            ]
+        ].rename(
+            columns={
+                "Net Income": "Net Income",
+                "Operating Cash Flow": "Operating Cash Flow",
+                "Capital Expenditure": "Capital Expenditure",
+                "free_cash_flow": "Free Cash Flow",
+            }
+        ).melt(
+            id_vars="year",
+            var_name="metric",
+            value_name="value",
+        )
+        flow_long["value_bn"] = flow_long["value"] / 1_000_000
+
+        flow_chart = px.bar(
+            flow_long,
+            x="year",
+            y="value_bn",
+            color="metric",
+            barmode="group",
+            text_auto=".1f",
+            labels={
+                "year": "Year",
+                "value_bn": "NT$ billion",
+                "metric": "Metric",
+            },
+            title="Earnings, Operating Cash Flow, Capex, and Free Cash Flow",
+        )
+        flow_chart.update_xaxes(dtick=1)
+        flow_chart.update_layout(legend_title_text="Metric")
+        st.plotly_chart(flow_chart, use_container_width=True)
+
+        if len(cash_entity_data) >= 2:
+            first_cash = cash_entity_data.iloc[0]
+            last_cash = cash_entity_data.iloc[-1]
+
+            growth_data = pd.DataFrame(
+                {
+                    "metric": [
+                        "Revenue",
+                        "Net Income",
+                        "Operating Cash Flow",
+                        "Inventory",
+                        "Accounts Receivable",
+                    ],
+                    "growth": [
+                        percent_change(last_cash["Revenue"], first_cash["Revenue"]),
+                        percent_change(
+                            last_cash["Net Income"], first_cash["Net Income"]
+                        ),
+                        percent_change(
+                            last_cash["Operating Cash Flow"],
+                            first_cash["Operating Cash Flow"],
+                        ),
+                        percent_change(
+                            last_cash["Inventory"], first_cash["Inventory"]
+                        ),
+                        percent_change(
+                            last_cash["Accounts Receivable"],
+                            first_cash["Accounts Receivable"],
+                        ),
+                    ],
+                }
+            )
+
+            growth_chart = px.bar(
+                growth_data,
+                x="metric",
+                y="growth",
+                text_auto=".1%",
+                labels={"metric": "Metric", "growth": "FY 2024–2025 Growth"},
+                title="Growth Quality: Operating Scale vs. Working Capital",
+            )
+            growth_chart.update_yaxes(tickformat=".0%")
+            st.plotly_chart(growth_chart, use_container_width=True)
+
+            st.success(
+                f"{research_answers['rq4']['status']}: "
+                f"{research_answers['rq4']['title']}"
+            )
+            st.write(research_answers["rq4"]["interpretation"])
+
+        cash_table = cash_entity_data[
+            [
+                "entity",
+                "year",
+                "Revenue",
+                "Net Income",
+                "Operating Cash Flow",
+                "Capital Expenditure",
+                "free_cash_flow",
+                "cash_conversion_ratio",
+                "free_cash_flow_margin",
+                "Inventory",
+                "Accounts Receivable",
+            ]
+        ].copy()
+
+        st.dataframe(
+            cash_table.style.format(
+                {
+                    "Revenue": "{:,.0f}",
+                    "Net Income": "{:,.0f}",
+                    "Operating Cash Flow": "{:,.0f}",
+                    "Capital Expenditure": "{:,.0f}",
+                    "free_cash_flow": "{:,.0f}",
+                    "cash_conversion_ratio": "{:.2f}x",
+                    "free_cash_flow_margin": "{:.2%}",
+                    "Inventory": "{:,.0f}",
+                    "Accounts Receivable": "{:,.0f}",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.caption(
+            "Financial statement amounts are shown in NT$ thousand in the table. "
+            "Positive capital expenditure values represent cash outflows."
+        )
+
 
 with tab_sources:
     st.subheader("Raw Financial Statement Data")
