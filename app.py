@@ -781,176 +781,129 @@ with rq3:
 st.markdown("<br>", unsafe_allow_html=True)
 
 st.markdown("### Prior Questions Revisited")
-st.markdown(
-    dedent(
-        """
-        <div class="prior-note">
-            The FY 2023–2024 classroom report did not present formal research questions.
-            The questions below reconstruct its central analytical issues from the prior
-            conclusions and reassess them using FY 2024–2025 evidence. This distinction
-            avoids presenting inferred questions as verbatim questions from the original report.
-        </div>
-        """
-    ),
-    unsafe_allow_html=True,
+st.info(
+    "The FY 2023–2024 classroom report did not present formal research "
+    "questions. The questions below reconstruct its central analytical issues "
+    "from the prior conclusions and reassess them using FY 2024–2025 evidence. "
+    "They should therefore be treated as inferred questions rather than "
+    "verbatim questions from the original report."
 )
+
+def render_prior_question(
+    number: str,
+    question: str,
+    prior_finding: str,
+    current_evidence: str,
+    status: str,
+    status_class: str,
+    updated_interpretation: str,
+    final_label: str = "UPDATED INTERPRETATION",
+) -> None:
+    """Render one prior-question card using native Streamlit components."""
+
+    with st.container(border=True):
+        st.markdown(f"**{number}**")
+        st.markdown(f"#### {question}")
+
+        st.markdown("##### 2023–2024 FINDING")
+        st.write(prior_finding)
+
+        st.markdown("##### 2024–2025 EVIDENCE")
+        st.write(current_evidence)
+
+        st.markdown(
+            f'<span class="prior-status {status_class}">{status}</span>',
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(f"##### {final_label}")
+        st.write(updated_interpretation)
+
 
 prior_row1_col1, prior_row1_col2 = st.columns(2, gap="large")
 
 with prior_row1_col1:
-    st.markdown(
-        dedent(
-            f"""
-            <div class="prior-card">
-                <div class="prior-number">PRIOR QUESTION 1</div>
-                <div class="prior-question">
-                    Would AVC's profitability improvement continue beyond FY 2024?
-                </div>
-
-                <div class="prior-label">2023–2024 FINDING</div>
-                <div class="prior-text">
-                    Revenue, margins, and EPS improved, but the prior report noted that
-                    long-term earnings stability still required monitoring.
-                </div>
-
-                <div class="prior-label">2024–2025 EVIDENCE</div>
-                <div class="prior-text">
-                    {research_answers["rq1"]["evidence"]}
-                </div>
-
-                <div class="prior-status prior-confirmed">
-                    CONFIRMED &amp; STRENGTHENED
-                </div>
-
-                <div class="prior-label">UPDATED INTERPRETATION</div>
-                <div class="prior-text">
-                    {research_answers["rq1"]["interpretation"]}
-                </div>
-            </div>
-            """
+    render_prior_question(
+        number="PRIOR QUESTION 1",
+        question="Would AVC's profitability improvement continue beyond FY 2024?",
+        prior_finding=(
+            "Revenue, margins, and EPS improved, but the prior report noted "
+            "that long-term earnings stability still required monitoring."
         ),
-        unsafe_allow_html=True,
+        current_evidence=research_answers["rq1"]["evidence"],
+        status="CONFIRMED & STRENGTHENED",
+        status_class="prior-confirmed",
+        updated_interpretation=research_answers["rq1"]["interpretation"],
     )
 
 with prior_row1_col2:
-    st.markdown(
-        dedent(
-            f"""
-            <div class="prior-card">
-                <div class="prior-number">PRIOR QUESTION 2</div>
-                <div class="prior-question">
-                    Would rapid expansion continue to weaken short-term liquidity?
-                </div>
-
-                <div class="prior-label">2023–2024 FINDING</div>
-                <div class="prior-text">
-                    Current, quick, cash, and net-working-capital ratios declined,
-                    indicating tighter liquidity and higher working-capital pressure.
-                </div>
-
-                <div class="prior-label">2024–2025 EVIDENCE</div>
-                <div class="prior-text">
-                    {research_answers["rq2"]["evidence"]}
-                </div>
-
-                <div class="prior-status prior-mixed">
-                    PARTIALLY EASED
-                </div>
-
-                <div class="prior-label">UPDATED INTERPRETATION</div>
-                <div class="prior-text">
-                    {research_answers["rq2"]["interpretation"]}
-                    The broader working-capital question still requires turnover and
-                    cash-flow evidence.
-                </div>
-            </div>
-            """
+    render_prior_question(
+        number="PRIOR QUESTION 2",
+        question="Would rapid expansion continue to weaken short-term liquidity?",
+        prior_finding=(
+            "Current, quick, cash, and net-working-capital ratios declined, "
+            "indicating tighter liquidity and higher working-capital pressure."
         ),
-        unsafe_allow_html=True,
+        current_evidence=research_answers["rq2"]["evidence"],
+        status="PARTIALLY EASED",
+        status_class="prior-mixed",
+        updated_interpretation=(
+            research_answers["rq2"]["interpretation"]
+            + " The broader working-capital question still requires turnover "
+            "and cash-flow evidence."
+        ),
     )
 
 prior_row2_col1, prior_row2_col2 = st.columns(2, gap="large")
 
 with prior_row2_col1:
-    st.markdown(
-        dedent(
-            f"""
-            <div class="prior-card">
-                <div class="prior-number">PRIOR QUESTION 3</div>
-                <div class="prior-question">
-                    Would standalone–consolidated differences remain economically meaningful?
-                </div>
-
-                <div class="prior-label">2023–2024 FINDING</div>
-                <div class="prior-text">
-                    The group showed greater operating scale, while consolidated efficiency
-                    and financing characteristics differed from the standalone entity.
-                </div>
-
-                <div class="prior-label">2024–2025 EVIDENCE</div>
-                <div class="prior-text">
-                    {research_answers["rq3"]["evidence"]}
-                </div>
-
-                <div class="prior-status prior-confirmed">
-                    CONFIRMED AT THE SCALE LEVEL
-                </div>
-
-                <div class="prior-label">UPDATED INTERPRETATION</div>
-                <div class="prior-text">
-                    {research_answers["rq3"]["interpretation"]}
-                    The current evidence confirms material group-level scale, but does not
-                    isolate subsidiary operating efficiency.
-                </div>
-            </div>
-            """
+    render_prior_question(
+        number="PRIOR QUESTION 3",
+        question=(
+            "Would standalone–consolidated differences remain economically meaningful?"
         ),
-        unsafe_allow_html=True,
+        prior_finding=(
+            "The group showed greater operating scale, while consolidated "
+            "efficiency and financing characteristics differed from the "
+            "standalone entity."
+        ),
+        current_evidence=research_answers["rq3"]["evidence"],
+        status="CONFIRMED AT THE SCALE LEVEL",
+        status_class="prior-confirmed",
+        updated_interpretation=(
+            research_answers["rq3"]["interpretation"]
+            + " The current evidence confirms material group-level scale, "
+            "but does not isolate subsidiary operating efficiency."
+        ),
     )
 
 with prior_row2_col2:
-    st.markdown(
-        dedent(
-            """
-            <div class="prior-card">
-                <div class="prior-number">PRIOR QUESTION 4</div>
-                <div class="prior-question">
-                    Did rapid growth convert into stable operating cash flow?
-                </div>
-
-                <div class="prior-label">2023–2024 FINDING</div>
-                <div class="prior-text">
-                    The prior report identified cash conversion—not accounting
-                    profitability—as the central sustainability risk, particularly as
-                    inventory, receivables, and expansion spending increased.
-                </div>
-
-                <div class="prior-label">2024–2025 EVIDENCE</div>
-                <div class="prior-text">
-                    This question cannot yet be tested with the current dashboard because
-                    the dataset does not include operating cash flow, capital expenditure,
-                    free cash flow, receivables turnover, or inventory turnover.
-                </div>
-
-                <div class="prior-status prior-gap">
-                    NOT YET TESTED
-                </div>
-
-                <div class="prior-label">NEXT RESEARCH EXTENSION</div>
-                <div class="prior-text">
-                    Add a Cash Flow Quality &amp; Working Capital module to test whether
-                    earnings growth is being converted into cash and whether inventory
-                    accumulation remains manageable.
-                </div>
-            </div>
-            """
+    render_prior_question(
+        number="PRIOR QUESTION 4",
+        question="Did rapid growth convert into stable operating cash flow?",
+        prior_finding=(
+            "The prior report identified cash conversion—not accounting "
+            "profitability—as the central sustainability risk, particularly "
+            "as inventory, receivables, and expansion spending increased."
         ),
-        unsafe_allow_html=True,
+        current_evidence=(
+            "This question cannot yet be tested with the current dashboard "
+            "because the dataset does not include operating cash flow, capital "
+            "expenditure, free cash flow, receivables turnover, or inventory turnover."
+        ),
+        status="NOT YET TESTED",
+        status_class="prior-gap",
+        updated_interpretation=(
+            "Add a Cash Flow Quality & Working Capital module to test whether "
+            "earnings growth is being converted into cash and whether inventory "
+            "accumulation remains manageable."
+        ),
+        final_label="NEXT RESEARCH EXTENSION",
     )
 
 st.caption(
-    "Interpretive note: 'Confirmed' means the new evidence is directionally consistent "
-    "with the prior finding; it does not imply causal proof."
+    "Interpretive note: 'Confirmed' means the new evidence is directionally "
+    "consistent with the prior finding; it does not imply causal proof."
 )
 
 st.markdown("<br>", unsafe_allow_html=True)
