@@ -586,6 +586,20 @@ st.markdown(
     """
     <div class="research-shell">
         <div class="research-kicker">RESEARCH FRAMEWORK</div>
+
+        <div class="research-title">Research Motivation</div>
+        <div class="research-objective">
+            This project originated from a classroom financial statement analysis
+            comparing AVC and Auras for FY 2023–2024. To extend the original assignment
+            into a more complete and reproducible research project, I updated the dataset
+            to FY 2024–2025, rebuilt the financial analysis in Python, and developed an
+            interactive dashboard. This extension allows the earlier findings to be
+            reassessed using the latest annual data while incorporating profitability,
+            liquidity, standalone-versus-consolidated differences, and peer benchmarking.
+        </div>
+
+        <div style="height: 18px;"></div>
+
         <div class="research-title">Project Objective</div>
         <div class="research-objective">
             This project examines whether AVC's rapid FY 2025 growth translated into
