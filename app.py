@@ -150,6 +150,84 @@ st.markdown(
         color: #64748B;
         margin-top: 10px;
     }
+
+    .prior-card {
+        background-color: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-left: 5px solid #3B82F6;
+        border-radius: 14px;
+        padding: 20px 20px 18px 20px;
+        min-height: 360px;
+        margin-bottom: 18px;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .prior-number {
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #2563EB;
+        margin-bottom: 8px;
+    }
+
+    .prior-question {
+        font-size: 1.04rem;
+        font-weight: 750;
+        line-height: 1.5;
+        color: #0F172A;
+        margin-bottom: 14px;
+    }
+
+    .prior-label {
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        color: #64748B;
+        margin-top: 12px;
+        margin-bottom: 4px;
+    }
+
+    .prior-text {
+        font-size: 0.86rem;
+        line-height: 1.6;
+        color: #475569;
+    }
+
+    .prior-status {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 5px 10px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        margin-top: 14px;
+    }
+
+    .prior-confirmed {
+        background-color: #DCFCE7;
+        color: #166534;
+    }
+
+    .prior-mixed {
+        background-color: #FEF3C7;
+        color: #92400E;
+    }
+
+    .prior-gap {
+        background-color: #EDE9FE;
+        color: #5B21B6;
+    }
+
+    .prior-note {
+        background-color: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 14px 16px;
+        color: #475569;
+        font-size: 0.86rem;
+        line-height: 1.6;
+        margin-bottom: 18px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -699,6 +777,181 @@ with rq3:
         """,
         unsafe_allow_html=True,
     )
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+st.markdown("### Prior Questions Revisited")
+st.markdown(
+    dedent(
+        """
+        <div class="prior-note">
+            The FY 2023–2024 classroom report did not present formal research questions.
+            The questions below reconstruct its central analytical issues from the prior
+            conclusions and reassess them using FY 2024–2025 evidence. This distinction
+            avoids presenting inferred questions as verbatim questions from the original report.
+        </div>
+        """
+    ),
+    unsafe_allow_html=True,
+)
+
+prior_row1_col1, prior_row1_col2 = st.columns(2, gap="large")
+
+with prior_row1_col1:
+    st.markdown(
+        dedent(
+            f"""
+            <div class="prior-card">
+                <div class="prior-number">PRIOR QUESTION 1</div>
+                <div class="prior-question">
+                    Would AVC's profitability improvement continue beyond FY 2024?
+                </div>
+
+                <div class="prior-label">2023–2024 FINDING</div>
+                <div class="prior-text">
+                    Revenue, margins, and EPS improved, but the prior report noted that
+                    long-term earnings stability still required monitoring.
+                </div>
+
+                <div class="prior-label">2024–2025 EVIDENCE</div>
+                <div class="prior-text">
+                    {research_answers["rq1"]["evidence"]}
+                </div>
+
+                <div class="prior-status prior-confirmed">
+                    CONFIRMED &amp; STRENGTHENED
+                </div>
+
+                <div class="prior-label">UPDATED INTERPRETATION</div>
+                <div class="prior-text">
+                    {research_answers["rq1"]["interpretation"]}
+                </div>
+            </div>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
+
+with prior_row1_col2:
+    st.markdown(
+        dedent(
+            f"""
+            <div class="prior-card">
+                <div class="prior-number">PRIOR QUESTION 2</div>
+                <div class="prior-question">
+                    Would rapid expansion continue to weaken short-term liquidity?
+                </div>
+
+                <div class="prior-label">2023–2024 FINDING</div>
+                <div class="prior-text">
+                    Current, quick, cash, and net-working-capital ratios declined,
+                    indicating tighter liquidity and higher working-capital pressure.
+                </div>
+
+                <div class="prior-label">2024–2025 EVIDENCE</div>
+                <div class="prior-text">
+                    {research_answers["rq2"]["evidence"]}
+                </div>
+
+                <div class="prior-status prior-mixed">
+                    PARTIALLY EASED
+                </div>
+
+                <div class="prior-label">UPDATED INTERPRETATION</div>
+                <div class="prior-text">
+                    {research_answers["rq2"]["interpretation"]}
+                    The broader working-capital question still requires turnover and
+                    cash-flow evidence.
+                </div>
+            </div>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
+
+prior_row2_col1, prior_row2_col2 = st.columns(2, gap="large")
+
+with prior_row2_col1:
+    st.markdown(
+        dedent(
+            f"""
+            <div class="prior-card">
+                <div class="prior-number">PRIOR QUESTION 3</div>
+                <div class="prior-question">
+                    Would standalone–consolidated differences remain economically meaningful?
+                </div>
+
+                <div class="prior-label">2023–2024 FINDING</div>
+                <div class="prior-text">
+                    The group showed greater operating scale, while consolidated efficiency
+                    and financing characteristics differed from the standalone entity.
+                </div>
+
+                <div class="prior-label">2024–2025 EVIDENCE</div>
+                <div class="prior-text">
+                    {research_answers["rq3"]["evidence"]}
+                </div>
+
+                <div class="prior-status prior-confirmed">
+                    CONFIRMED AT THE SCALE LEVEL
+                </div>
+
+                <div class="prior-label">UPDATED INTERPRETATION</div>
+                <div class="prior-text">
+                    {research_answers["rq3"]["interpretation"]}
+                    The current evidence confirms material group-level scale, but does not
+                    isolate subsidiary operating efficiency.
+                </div>
+            </div>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
+
+with prior_row2_col2:
+    st.markdown(
+        dedent(
+            """
+            <div class="prior-card">
+                <div class="prior-number">PRIOR QUESTION 4</div>
+                <div class="prior-question">
+                    Did rapid growth convert into stable operating cash flow?
+                </div>
+
+                <div class="prior-label">2023–2024 FINDING</div>
+                <div class="prior-text">
+                    The prior report identified cash conversion—not accounting
+                    profitability—as the central sustainability risk, particularly as
+                    inventory, receivables, and expansion spending increased.
+                </div>
+
+                <div class="prior-label">2024–2025 EVIDENCE</div>
+                <div class="prior-text">
+                    This question cannot yet be tested with the current dashboard because
+                    the dataset does not include operating cash flow, capital expenditure,
+                    free cash flow, receivables turnover, or inventory turnover.
+                </div>
+
+                <div class="prior-status prior-gap">
+                    NOT YET TESTED
+                </div>
+
+                <div class="prior-label">NEXT RESEARCH EXTENSION</div>
+                <div class="prior-text">
+                    Add a Cash Flow Quality &amp; Working Capital module to test whether
+                    earnings growth is being converted into cash and whether inventory
+                    accumulation remains manageable.
+                </div>
+            </div>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
+
+st.caption(
+    "Interpretive note: 'Confirmed' means the new evidence is directionally consistent "
+    "with the prior finding; it does not imply causal proof."
+)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
