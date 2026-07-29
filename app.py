@@ -908,54 +908,45 @@ def render_prior_question(
 
 
 with tab_research:
-    st.markdown(
-        dedent(
-            """
-            <div class="research-shell">
-                <div class="research-kicker">RESEARCH FRAMEWORK</div>
-
-                <div class="research-title">Research Motivation</div>
-                <div class="research-objective">
-                    This project originated from a classroom financial statement analysis
-                    comparing AVC and Auras for FY 2023–2024. To extend the original
-                    assignment into a more complete and reproducible research project, I
-                    updated the dataset to FY 2024–2025, rebuilt the financial analysis in
-                    Python, and developed an interactive dashboard. This extension allows
-                    the earlier findings to be reassessed using the latest annual data while
-                    incorporating profitability, liquidity, standalone-versus-consolidated
-                    differences, and peer benchmarking.
-                </div>
-
-                <div style="height: 18px;"></div>
-
-                <div class="research-title">Project Objective</div>
-                <div class="research-objective">
-                    This project examines whether AVC's rapid FY 2025 growth translated
-                    into stronger profitability, resilient short-term liquidity, and
-                    improved cash generation. It combines year-over-year analysis,
-                    standalone-versus-consolidated comparison, peer benchmarking against
-                    Auras, and cash-flow-quality analysis to identify decision-relevant
-                    financial signals.
-                </div>
-
-                <div class="research-meta">
-                    <span class="research-chip">Period: FY 2024–2025</span>
-                    <span class="research-chip">Primary firm: AVC</span>
-                    <span class="research-chip">Peer benchmark: Auras</span>
-                    <span class="research-chip">Source: Audited financial statements</span>
-                    <span class="research-chip">Method: Python-recalculated ratios</span>
-                </div>
-
-                <div class="design-note">
-                    Research design: descriptive and comparative analysis. Reported
-                    relationships should be interpreted as financial associations rather
-                    than causal effects.
-                </div>
-            </div>
-            """
-        ),
-        unsafe_allow_html=True,
+    research_overview_html = (
+        '<div class="research-shell">'
+        '<div class="research-kicker">RESEARCH FRAMEWORK</div>'
+        '<div class="research-title">Research Motivation</div>'
+        '<div class="research-objective">'
+        'This project originated from a classroom financial statement analysis '
+        'comparing AVC and Auras for FY 2023–2024. To extend the original '
+        'assignment into a more complete and reproducible research project, I '
+        'updated the dataset to FY 2024–2025, rebuilt the financial analysis in '
+        'Python, and developed an interactive dashboard. This extension allows '
+        'the earlier findings to be reassessed using the latest annual data while '
+        'incorporating profitability, liquidity, standalone-versus-consolidated '
+        'differences, and peer benchmarking.'
+        '</div>'
+        '<div style="height:18px;"></div>'
+        '<div class="research-title">Project Objective</div>'
+        '<div class="research-objective">'
+        "This project examines whether AVC's rapid FY 2025 growth translated "
+        'into stronger profitability, resilient short-term liquidity, and '
+        'improved cash generation. It combines year-over-year analysis, '
+        'standalone-versus-consolidated comparison, peer benchmarking against '
+        'Auras, and cash-flow-quality analysis to identify decision-relevant '
+        'financial signals.'
+        '</div>'
+        '<div class="research-meta">'
+        '<span class="research-chip">Period: FY 2024–2025</span>'
+        '<span class="research-chip">Primary firm: AVC</span>'
+        '<span class="research-chip">Peer benchmark: Auras</span>'
+        '<span class="research-chip">Source: Audited financial statements</span>'
+        '<span class="research-chip">Method: Python-recalculated ratios</span>'
+        '</div>'
+        '<div class="design-note">'
+        'Research design: descriptive and comparative analysis. Reported '
+        'relationships should be interpreted as financial associations rather '
+        'than causal effects.'
+        '</div>'
+        '</div>'
     )
+    st.markdown(research_overview_html, unsafe_allow_html=True)
 
     st.markdown("### Prior Questions Revisited: FY 2024–2025 Update")
     st.info(
