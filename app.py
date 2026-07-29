@@ -867,6 +867,49 @@ st.info(
     "verbatim questions from the original report."
 )
 
+def get_prior_status(question_key: str) -> tuple[str, str]:
+    """Translate a calculated answer into a prior-question status label."""
+
+    calculated_status = research_answers[question_key]["status"]
+
+    status_map = {
+        "rq1": {
+            "ANSWER: YES": ("CONFIRMED & STRENGTHENED", "prior-confirmed"),
+            "ANSWER: MIXED": ("PARTIALLY CONFIRMED", "prior-mixed"),
+            "DATA CHECK": ("DATA CHECK REQUIRED", "prior-gap"),
+        },
+        "rq2": {
+            "ANSWER: NO": ("PARTIALLY EASED", "prior-confirmed"),
+            "ANSWER: YES": ("CONCERN PERSISTED", "prior-mixed"),
+            "ANSWER: MIXED": ("MIXED EVIDENCE", "prior-mixed"),
+            "DATA CHECK": ("DATA CHECK REQUIRED", "prior-gap"),
+        },
+        "rq3": {
+            "ANSWER: SCALE ADVANTAGE": (
+                "CONFIRMED AT THE SCALE LEVEL",
+                "prior-confirmed",
+            ),
+            "DATA CHECK": ("DATA CHECK REQUIRED", "prior-gap"),
+        },
+        "rq4": {
+            "ANSWER: YES": ("CONFIRMED & STRENGTHENED", "prior-confirmed"),
+            "ANSWER: MIXED": ("MIXED EVIDENCE", "prior-mixed"),
+            "DATA CHECK": ("DATA CHECK REQUIRED", "prior-gap"),
+        },
+    }
+
+    return status_map.get(question_key, {}).get(
+        calculated_status,
+        ("REVIEW REQUIRED", "prior-gap"),
+    )
+
+
+rq1_prior_status, rq1_prior_class = get_prior_status("rq1")
+rq2_prior_status, rq2_prior_class = get_prior_status("rq2")
+rq3_prior_status, rq3_prior_class = get_prior_status("rq3")
+rq4_prior_status, rq4_prior_class = get_prior_status("rq4")
+
+
 def render_prior_question(
     number: str,
     question: str,
@@ -909,8 +952,8 @@ with prior_row1_col1:
             "that long-term earnings stability still required monitoring."
         ),
         current_evidence=research_answers["rq1"]["evidence"],
-        status="CONFIRMED & STRENGTHENED",
-        status_class="prior-confirmed",
+        status=rq1_prior_status,
+        status_class=rq1_prior_class,
         updated_interpretation=research_answers["rq1"]["interpretation"],
     )
 
@@ -923,12 +966,14 @@ with prior_row1_col2:
             "indicating tighter liquidity and higher working-capital pressure."
         ),
         current_evidence=research_answers["rq2"]["evidence"],
-        status="PARTIALLY EASED",
-        status_class="prior-mixed",
+        status=rq2_prior_status,
+        status_class=rq2_prior_class,
         updated_interpretation=(
             research_answers["rq2"]["interpretation"]
-            + " The broader working-capital question still requires turnover "
-            "and cash-flow evidence."
+            + " Cash-flow conversion improved substantially, reducing concerns "
+            "about immediate liquidity pressure. However, inventory turnover "
+            "and receivables turnover are still required to determine whether "
+            "working-capital efficiency also improved."
         ),
     )
 
@@ -946,8 +991,8 @@ with prior_row2_col1:
             "standalone entity."
         ),
         current_evidence=research_answers["rq3"]["evidence"],
-        status="CONFIRMED AT THE SCALE LEVEL",
-        status_class="prior-confirmed",
+        status=rq3_prior_status,
+        status_class=rq3_prior_class,
         updated_interpretation=(
             research_answers["rq3"]["interpretation"]
             + " The current evidence confirms material group-level scale, "
@@ -965,8 +1010,8 @@ with prior_row2_col2:
             "as inventory, receivables, and expansion spending increased."
         ),
         current_evidence=research_answers["rq4"]["evidence"],
-        status="CONFIRMED & STRENGTHENED",
-        status_class="prior-confirmed",
+        status=rq4_prior_status,
+        status_class=rq4_prior_class,
         updated_interpretation=research_answers["rq4"]["interpretation"],
     )
 
