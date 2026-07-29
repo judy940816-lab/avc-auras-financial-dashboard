@@ -234,12 +234,14 @@ st.markdown(
 )
 
 @st.cache_data
-def load_raw_data() -> pd.DataFrame:
+def load_raw_data(file_signature: tuple[int, int]) -> pd.DataFrame:
     """Load only the raw financial statement table.
 
-    The web app recalculates every ratio in Python, so it does not depend on
-    Excel formula caches.
+    ``file_signature`` contains the Excel file's modification time and size.
+    It is used as a cache key so Streamlit reloads the data whenever the Excel
+    file is replaced, even when this function's code has not changed.
     """
+    del file_signature
     if not DATA_FILE.exists():
         raise FileNotFoundError(f"Data file not found: {DATA_FILE}")
 
@@ -755,7 +757,9 @@ def build_research_answers(
 
 
 try:
-    raw = load_raw_data()
+    file_stat = DATA_FILE.stat()
+    data_file_signature = (file_stat.st_mtime_ns, file_stat.st_size)
+    raw = load_raw_data(data_file_signature)
 except (FileNotFoundError, ValueError) as exc:
     st.error(str(exc))
     st.stop()
@@ -854,68 +858,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown("### Research Questions & Findings")
-st.caption(
-    "Each conclusion is recalculated from the underlying FY 2024–2025 source data."
-)
-
-
-def render_research_finding(
-    number: str,
-    question: str,
-    answer: dict,
-) -> None:
-    """Render one research finding using native Streamlit components."""
-
-    with st.container(border=True):
-        st.markdown(f"**{number}**")
-        st.markdown(f"#### {question}")
-        st.markdown(
-            f'<span class="answer-pill">{answer["status"]}</span>',
-            unsafe_allow_html=True,
-        )
-        st.markdown(f"**{answer['title']}**")
-        st.markdown("##### EVIDENCE")
-        st.write(answer["evidence"])
-        st.markdown("##### INTERPRETATION")
-        st.write(answer["interpretation"])
-
-
-rq_row1_col1, rq_row1_col2 = st.columns(2, gap="large")
-
-with rq_row1_col1:
-    render_research_finding(
-        "RQ1",
-        "Did AVC's revenue growth translate into stronger profitability?",
-        research_answers["rq1"],
-    )
-
-with rq_row1_col2:
-    render_research_finding(
-        "RQ2",
-        "Did rapid expansion weaken AVC's short-term liquidity position?",
-        research_answers["rq2"],
-    )
-
-rq_row2_col1, rq_row2_col2 = st.columns(2, gap="large")
-
-with rq_row2_col1:
-    render_research_finding(
-        "RQ3",
-        "What do standalone–consolidated differences and peer comparison reveal?",
-        research_answers["rq3"],
-    )
-
-with rq_row2_col2:
-    render_research_finding(
-        "RQ4",
-        "Did AVC's rapid growth convert into stronger operating cash flow?",
-        research_answers["rq4"],
-    )
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-st.markdown("### Prior Questions Revisited")
+st.markdown("### Prior Questions Revisited: FY 2024–2025 Update")
 st.info(
     "The FY 2023–2024 classroom report did not present formal research "
     "questions. The questions below reconstruct its central analytical issues "
