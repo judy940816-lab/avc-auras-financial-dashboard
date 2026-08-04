@@ -1167,7 +1167,7 @@ def render_prior_question(
         "Profitability",
         "Cash Flow Quality",
         "Decision Memo",
-        "Methodology & Validation",
+        "Methodology & Reproducibility",
         "Source Data",
     ]
 )
@@ -1971,42 +1971,67 @@ with tab_memo:
 
 
 with tab_methodology:
-    st.subheader("Methodology & Data Validation")
+    st.subheader("Methodology & Reproducibility")
     st.caption(
-        "This page documents how the financial statements were converted into "
-        "a reproducible analytical dataset and verifies whether the required "
-        "records are complete, unique, and traceable."
+        "This page summarizes the dataset scope, analytical workflow, and "
+        "quality checks used to make the financial analysis reproducible."
     )
 
-    st.markdown("### Reproducible Data Pipeline")
-    pipeline_columns = st.columns(4, gap="large")
+    st.markdown("### Data Scope")
+    scope_columns = st.columns(4, gap="large")
 
-    pipeline_steps = [
+    scope_items = [
+        ("Period", "FY 2024–2025"),
         (
-            "1. Source Collection",
-            "Audited standalone and consolidated financial statements.",
+            "Entities",
+            "AVC consolidated, AVC standalone, and Auras consolidated",
         ),
+        ("Source", "Audited financial statements"),
         (
-            "2. Account Mapping",
-            "Financial statement line items mapped into consistent account names.",
-        ),
-        (
-            "3. Long-form Database",
-            "Company, scope, year, statement, account, value, unit, page, and file.",
-        ),
-        (
-            "4. Python Analysis",
-            "Ratios, growth rates, cash-flow quality, charts, and research findings.",
+            "Dataset",
+            f"{validation_summary['total_records']:,} source-traceable records",
         ),
     ]
 
-    for column, (title, description) in zip(pipeline_columns, pipeline_steps):
+    for column, (title, description) in zip(scope_columns, scope_items):
         with column:
             with st.container(border=True):
                 st.markdown(f"**{title}**")
                 st.write(description)
 
-    st.markdown("### Validation Summary")
+    st.markdown("### Analytical Workflow")
+    workflow_columns = st.columns(5, gap="medium")
+
+    workflow_steps = [
+        (
+            "1. Source Collection",
+            "Collect audited standalone and consolidated statements.",
+        ),
+        (
+            "2. Account Mapping",
+            "Map reported line items into consistent account names.",
+        ),
+        (
+            "3. Long-form Dataset",
+            "Store company, scope, year, account, value, page, and file.",
+        ),
+        (
+            "4. Python Calculations",
+            "Recalculate ratios, growth rates, and cash-flow metrics.",
+        ),
+        (
+            "5. Interpretation",
+            "Visualize results and connect findings to business questions.",
+        ),
+    ]
+
+    for column, (title, description) in zip(workflow_columns, workflow_steps):
+        with column:
+            with st.container(border=True):
+                st.markdown(f"**{title}**")
+                st.write(description)
+
+    st.markdown("### Data Quality Summary")
     validation_metrics = st.columns(4, gap="large")
     validation_metrics[0].metric(
         "Records Loaded",
@@ -2057,39 +2082,38 @@ with tab_methodology:
 
     if validation_summary["passed"]:
         st.success(
-            "Validation status: PASSED. Core module accounts are available, "
-            "records are unique, required values are complete, and all records "
-            "retain source-file and source-page references."
+            "Data-quality checks passed: required records are complete and "
+            "unique, and every observation retains its source file and page."
         )
     else:
         st.warning(
-            "Validation status: REVIEW REQUIRED. Inspect the coverage and "
-            "duplicate-record tables below."
+            "Some data-quality checks require review. Open the detailed sections "
+            "below to inspect coverage, duplicates, or missing information."
         )
 
-    st.markdown("### Entity–Year Module Coverage")
-    st.dataframe(
-        validation_coverage,
-        use_container_width=True,
-        hide_index=True,
-    )
+    with st.expander("View entity-year coverage"):
+        st.dataframe(
+            validation_coverage,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    with st.expander("View source coverage"):
+        st.dataframe(
+            source_coverage,
+            use_container_width=True,
+            hide_index=True,
+        )
 
     if not validation_duplicates.empty:
-        with st.expander("Duplicate records requiring review"):
+        with st.expander("View duplicate records requiring review"):
             st.dataframe(
                 validation_duplicates,
                 use_container_width=True,
                 hide_index=True,
             )
 
-    st.markdown("### Source Coverage")
-    st.dataframe(
-        source_coverage,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    with st.expander("Core formulas and calculation definitions"):
+    with st.expander("View calculation definitions"):
         st.markdown(
             """
             **Liquidity**
@@ -2112,9 +2136,9 @@ with tab_methodology:
         )
 
     st.info(
-        "Reproducibility note: the app reads only the raw_financials worksheet "
-        "and recalculates all analytical metrics in Python. It does not rely on "
-        "Excel formula caches."
+        "Reproducibility note: the app reads the raw_financials worksheet and "
+        "recalculates all analytical metrics in Python rather than relying on "
+        "precomputed Excel formulas."
     )
 
 
