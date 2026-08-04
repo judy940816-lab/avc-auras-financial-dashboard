@@ -980,12 +980,14 @@ research_answers = build_research_answers(
 )
 
 
-(
-    validation_summary,
-    validation_coverage,
-    validation_duplicates,
-    source_coverage,
-) = build_validation_report(raw)
+validation_summary, _, _, _ = build_validation_report(raw)
+
+if not validation_summary["passed"]:
+    st.error(
+        "Data validation failed. Review duplicate records, required fields, "
+        "module coverage, and source references before interpreting the results."
+    )
+    st.stop()
 
 rq1_source = build_source_reference(
     raw,
@@ -1189,6 +1191,11 @@ with tab_research:
         if research_answers["rq4"]["status"] == "ANSWER: YES"
         else research_answers["rq4"]["title"]
     )
+    snapshot_peer = (
+        "Greater scale and a stronger operating margin than Auras"
+        if research_answers["rq3"]["status"] == "ANSWER: SCALE ADVANTAGE"
+        else research_answers["rq3"]["title"]
+    )
 
     st.markdown("### Research Snapshot")
     question_col, data_col, findings_col = st.columns(3, gap="large")
@@ -1209,7 +1216,7 @@ with tab_research:
                 - Period: **FY 2024–2025**
                 - AVC: consolidated and standalone statements
                 - Auras: consolidated statements
-                - **{validation_summary['total_records']}** source-traceable records
+                - Manually structured, source-traceable dataset
                 - Source: audited financial statements
                 """
             )
@@ -1222,6 +1229,7 @@ with tab_research:
                 - **Profitability:** {snapshot_profitability}
                 - **Liquidity:** {snapshot_liquidity}
                 - **Cash Flow:** {snapshot_cash_flow}
+                - **Peer Benchmark:** {snapshot_peer}
                 """
             )
 
@@ -1933,8 +1941,8 @@ with tab_memo:
                 - Future expansion may require substantial capital expenditure.
                 - Inventory and accounts receivable may place pressure on
                   working-capital requirements.
-                - Financial results may remain sensitive to customer concentration
-                  and industry cycles.
+                - Customer concentration and industry-cycle exposure are outside
+                  the current dataset and require separate analysis.
                 - A single peer company cannot represent the entire industry.
                 """
             )
