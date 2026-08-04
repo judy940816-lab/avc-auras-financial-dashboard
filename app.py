@@ -1,6 +1,4 @@
 from pathlib import Path
-from textwrap import dedent
-
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -1176,29 +1174,74 @@ def render_prior_question(
 
 
 with tab_research:
+    snapshot_profitability = (
+        "Margins and operating leverage improved"
+        if research_answers["rq1"]["status"] == "ANSWER: YES"
+        else research_answers["rq1"]["title"]
+    )
+    snapshot_liquidity = (
+        "Broadly stable during expansion"
+        if research_answers["rq2"]["status"] == "ANSWER: NO"
+        else research_answers["rq2"]["title"]
+    )
+    snapshot_cash_flow = (
+        "Cash conversion strengthened substantially"
+        if research_answers["rq4"]["status"] == "ANSWER: YES"
+        else research_answers["rq4"]["title"]
+    )
+
+    st.markdown("### Research Snapshot")
+    question_col, data_col, findings_col = st.columns(3, gap="large")
+
+    with question_col:
+        with st.container(border=True):
+            st.markdown("#### Research Question")
+            st.write(
+                "Did AVC's FY 2025 growth translate into stronger profitability, "
+                "resilient liquidity, and improved cash generation relative to Auras?"
+            )
+
+    with data_col:
+        with st.container(border=True):
+            st.markdown("#### Data")
+            st.markdown(
+                f"""
+                - Period: **FY 2024–2025**
+                - AVC: consolidated and standalone statements
+                - Auras: consolidated statements
+                - **{validation_summary['total_records']}** source-traceable records
+                - Source: audited financial statements
+                """
+            )
+
+    with findings_col:
+        with st.container(border=True):
+            st.markdown("#### Key Findings")
+            st.markdown(
+                f"""
+                - **Profitability:** {snapshot_profitability}
+                - **Liquidity:** {snapshot_liquidity}
+                - **Cash Flow:** {snapshot_cash_flow}
+                """
+            )
+
     research_overview_html = (
         '<div class="research-shell">'
         '<div class="research-kicker">RESEARCH FRAMEWORK</div>'
         '<div class="research-title">Research Motivation</div>'
         '<div class="research-objective">'
-        'This project originated from a classroom financial statement analysis '
-        'comparing AVC and Auras for FY 2023–2024. To extend the original '
-        'assignment into a more complete and reproducible research project, I '
-        'updated the dataset to FY 2024–2025, rebuilt the financial analysis in '
-        'Python, and developed an interactive dashboard. This extension allows '
-        'the earlier findings to be reassessed using the latest annual data while '
-        'incorporating profitability, liquidity, standalone-versus-consolidated '
-        'differences, and peer benchmarking.'
+        'This project extends a classroom comparison of AVC and Auras from '
+        'FY 2023–2024 to FY 2024–2025. The financial statements were reorganized '
+        'into a source-traceable dataset, and all analytical metrics were '
+        'recalculated in Python to create a reproducible research workflow.'
         '</div>'
         '<div style="height:18px;"></div>'
         '<div class="research-title">Project Objective</div>'
         '<div class="research-objective">'
-        "This project examines whether AVC's rapid FY 2025 growth translated "
-        'into stronger profitability, resilient short-term liquidity, and '
-        'improved cash generation. It combines year-over-year analysis, '
-        'standalone-versus-consolidated comparison, peer benchmarking against '
-        'Auras, and cash-flow-quality analysis to identify decision-relevant '
-        'financial signals.'
+        "The analysis examines whether AVC's rapid growth translated into "
+        'stronger profitability, resilient liquidity, and improved cash '
+        'generation, while comparing standalone, consolidated, and peer '
+        'performance.'
         '</div>'
         '<div class="research-meta">'
         '<span class="research-chip">Period: FY 2024–2025</span>'
@@ -1215,46 +1258,8 @@ with tab_research:
         '</div>'
     )
     st.markdown(research_overview_html, unsafe_allow_html=True)
-    st.markdown("### Research Snapshot")
-
-    question_col, data_col, findings_col = st.columns(3, gap="large")
-
-    with question_col:
-        with st.container(border=True):
-            st.markdown("#### Research Question")
-            st.write(
-                "Did AVC's rapid FY 2025 growth translate into stronger "
-                "profitability, resilient short-term liquidity, and improved "
-                "cash generation, and how did its performance compare with Auras?"
-            )
-
-    with data_col:
-        with st.container(border=True):
-            st.markdown("#### Data")
-            st.markdown(
-                f"""
-                - Period: **FY 2024–2025**
-                - AVC consolidated statements
-                - AVC standalone statements
-                - Auras consolidated statements
-                - **{validation_summary['total_records']}** source-traceable records
-                - Audited financial statements
-                """
-            )
-
-    with findings_col:
-        with st.container(border=True):
-            st.markdown("#### Key Findings")
-            st.markdown(
-                f"""
-                - **Profitability:** {research_answers['rq1']['title']}
-                - **Liquidity:** {research_answers['rq2']['title']}
-                - **Cash Flow:** {research_answers['rq4']['title']}
-                """
-            )
 
     st.divider()
-
     st.markdown("### Prior Questions Revisited: FY 2024–2025 Update")
     st.info(
         "The FY 2023–2024 classroom report did not present formal research "
@@ -1347,7 +1352,9 @@ with tab_research:
         "consistent with the prior finding; it does not imply causal proof."
     )
 
-    with st.expander("Limitations and interpretation boundaries"):
+    st.divider()
+    st.markdown("### Limitations")
+    with st.container(border=True):
         st.markdown(
             """
             - The analysis covers only FY 2024–2025, so the results should not be
@@ -1909,17 +1916,15 @@ with tab_cash_flow:
 
 with tab_memo:
     st.header("Decision Memo")
-    st.caption(
-        "AVC consolidated financial performance, FY 2024–FY 2025"
-    )
+    st.caption("AVC consolidated financial performance, FY 2024–2025")
 
     with st.container(border=True):
         st.markdown("### Executive Assessment")
-        st.write(
-            "AVC's rapid growth during FY 2024–2025 was accompanied by "
-            "stronger profitability and substantially improved cash generation. "
-            "Short-term liquidity remained broadly stable, although the slight "
-            "decline in the current ratio should continue to be monitored."
+        st.markdown(
+            "AVC's FY 2025 expansion was accompanied by **stronger profitability**, "
+            "**substantially improved cash generation**, and **broadly stable "
+            "short-term liquidity**. The slight decline in the current ratio should "
+            "continue to be monitored."
         )
 
     observation_col, interpretation_col = st.columns(2, gap="large")
@@ -1981,7 +1986,6 @@ with tab_memo:
             )
 
     st.markdown("### Source References")
-
     source_col1, source_col2 = st.columns(2, gap="large")
 
     with source_col1:
@@ -1997,6 +2001,8 @@ with tab_memo:
         "descriptive and should not be interpreted as causal evidence or "
         "investment advice."
     )
+
+
 with tab_methodology:
     st.subheader("Methodology & Data Validation")
     st.caption(
