@@ -1236,12 +1236,11 @@ with tab_research:
         'recalculated in Python to create a reproducible research workflow.'
         '</div>'
         '<div style="height:18px;"></div>'
-        '<div class="research-title">Project Objective</div>'
+        '<div class="research-title">Analytical Approach</div>'
         '<div class="research-objective">'
-        "The analysis examines whether AVC's rapid growth translated into "
-        'stronger profitability, resilient liquidity, and improved cash '
-        'generation, while comparing standalone, consolidated, and peer '
-        'performance.'
+        'The dashboard combines year-over-year analysis, standalone-versus-'
+        'consolidated comparison, peer benchmarking, and cash-flow-quality '
+        'analysis within a reproducible Python workflow.'
         '</div>'
         '<div class="research-meta">'
         '<span class="research-chip">Period: FY 2024–2025</span>'
@@ -1251,9 +1250,7 @@ with tab_research:
         '<span class="research-chip">Method: Python-recalculated ratios</span>'
         '</div>'
         '<div class="design-note">'
-        'Research design: descriptive and comparative analysis. Reported '
-        'relationships should be interpreted as financial associations rather '
-        'than causal effects.'
+        'Research design: descriptive and comparative analysis.'
         '</div>'
         '</div>'
     )
@@ -1524,36 +1521,6 @@ with tab_summary:
             row2[1].metric("Current Ratio", "N/A")
             row2[2].metric("Quick Ratio", "N/A")
             row2[3].metric("Cash Ratio", "N/A")
-
-        st.subheader("Decision Signals")
-        memo_profit, memo_liquidity, memo_cash = st.columns(3, gap="large")
-
-        with memo_profit:
-            st.success(
-                "**Profitability**\n\n"
-                + research_answers["rq1"]["title"]
-            )
-            st.caption(rq1_source)
-
-        with memo_liquidity:
-            st.info(
-                "**Liquidity**\n\n"
-                + research_answers["rq2"]["title"]
-            )
-            st.caption(rq2_source)
-
-        with memo_cash:
-            if research_answers["rq4"]["status"] == "ANSWER: YES":
-                st.success(
-                    "**Cash Flow**\n\n"
-                    + research_answers["rq4"]["title"]
-                )
-            else:
-                st.warning(
-                    "**Cash Flow**\n\n"
-                    + research_answers["rq4"]["title"]
-                )
-            st.caption(rq4_source)
 
     st.subheader("Revenue Comparison")
     revenue_chart = px.bar(
