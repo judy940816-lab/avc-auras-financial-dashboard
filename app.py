@@ -1215,7 +1215,7 @@ with tab_research:
         '</div>'
     )
     st.markdown(research_overview_html, unsafe_allow_html=True)
-        st.markdown("### Research Snapshot")
+    st.markdown("### Research Snapshot")
 
     question_col, data_col, findings_col = st.columns(3, gap="large")
 
