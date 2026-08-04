@@ -1974,11 +1974,11 @@ with tab_methodology:
     st.subheader("Methodology & Reproducibility")
     st.caption(
         "This page summarizes the dataset scope, analytical workflow, and "
-        "quality checks used to make the financial analysis reproducible."
+        "calculation definitions used to make the financial analysis reproducible."
     )
 
     st.markdown("### Data Scope")
-    scope_columns = st.columns(4, gap="large")
+    scope_columns = st.columns(3, gap="large")
 
     scope_items = [
         ("Period", "FY 2024–2025"),
@@ -1987,10 +1987,6 @@ with tab_methodology:
             "AVC consolidated, AVC standalone, and Auras consolidated",
         ),
         ("Source", "Audited financial statements"),
-        (
-            "Dataset",
-            f"{validation_summary['total_records']:,} source-traceable records",
-        ),
     ]
 
     for column, (title, description) in zip(scope_columns, scope_items):
@@ -2030,88 +2026,6 @@ with tab_methodology:
             with st.container(border=True):
                 st.markdown(f"**{title}**")
                 st.write(description)
-
-    st.markdown("### Data Quality Summary")
-    validation_metrics = st.columns(4, gap="large")
-    validation_metrics[0].metric(
-        "Records Loaded",
-        f"{validation_summary['total_records']:,}",
-    )
-    validation_metrics[1].metric(
-        "Duplicate Records",
-        f"{validation_summary['duplicate_records']:,}",
-        delta=(
-            "Passed"
-            if validation_summary["duplicate_records"] == 0
-            else "Review required"
-        ),
-        delta_color=(
-            "off"
-            if validation_summary["duplicate_records"] == 0
-            else "inverse"
-        ),
-    )
-    validation_metrics[2].metric(
-        "Missing Required Values",
-        f"{validation_summary['missing_required_values']:,}",
-        delta=(
-            "Passed"
-            if validation_summary["missing_required_values"] == 0
-            else "Review required"
-        ),
-        delta_color=(
-            "off"
-            if validation_summary["missing_required_values"] == 0
-            else "inverse"
-        ),
-    )
-    validation_metrics[3].metric(
-        "Source Traceability",
-        f"{validation_summary['traceability_rate']:.0%}",
-        delta=(
-            "Passed"
-            if validation_summary["traceability_rate"] == 1.0
-            else "Incomplete"
-        ),
-        delta_color=(
-            "off"
-            if validation_summary["traceability_rate"] == 1.0
-            else "inverse"
-        ),
-    )
-
-    if validation_summary["passed"]:
-        st.success(
-            "Data-quality checks passed: required records are complete and "
-            "unique, and every observation retains its source file and page."
-        )
-    else:
-        st.warning(
-            "Some data-quality checks require review. Open the detailed sections "
-            "below to inspect coverage, duplicates, or missing information."
-        )
-
-    with st.expander("View entity-year coverage"):
-        st.dataframe(
-            validation_coverage,
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    with st.expander("View source coverage"):
-        st.dataframe(
-            source_coverage,
-            use_container_width=True,
-            hide_index=True,
-        )
-
-    if not validation_duplicates.empty:
-        with st.expander("View duplicate records requiring review"):
-            st.dataframe(
-                validation_duplicates,
-                use_container_width=True,
-                hide_index=True,
-            )
 
     with st.expander("View calculation definitions"):
         st.markdown(
