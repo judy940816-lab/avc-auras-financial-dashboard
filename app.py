@@ -1158,6 +1158,7 @@ def render_prior_question(
     tab_liquidity,
     tab_profitability,
     tab_cash_flow,
+    tab_memo,
     tab_methodology,
     tab_sources,
 ) = st.tabs(
@@ -1167,6 +1168,7 @@ def render_prior_question(
         "Liquidity",
         "Profitability",
         "Cash Flow Quality",
+        "Decision Memo",
         "Methodology & Validation",
         "Source Data",
     ]
@@ -1213,6 +1215,45 @@ with tab_research:
         '</div>'
     )
     st.markdown(research_overview_html, unsafe_allow_html=True)
+        st.markdown("### Research Snapshot")
+
+    question_col, data_col, findings_col = st.columns(3, gap="large")
+
+    with question_col:
+        with st.container(border=True):
+            st.markdown("#### Research Question")
+            st.write(
+                "Did AVC's rapid FY 2025 growth translate into stronger "
+                "profitability, resilient short-term liquidity, and improved "
+                "cash generation, and how did its performance compare with Auras?"
+            )
+
+    with data_col:
+        with st.container(border=True):
+            st.markdown("#### Data")
+            st.markdown(
+                f"""
+                - Period: **FY 2024–2025**
+                - AVC consolidated statements
+                - AVC standalone statements
+                - Auras consolidated statements
+                - **{validation_summary['total_records']}** source-traceable records
+                - Audited financial statements
+                """
+            )
+
+    with findings_col:
+        with st.container(border=True):
+            st.markdown("#### Key Findings")
+            st.markdown(
+                f"""
+                - **Profitability:** {research_answers['rq1']['title']}
+                - **Liquidity:** {research_answers['rq2']['title']}
+                - **Cash Flow:** {research_answers['rq4']['title']}
+                """
+            )
+
+    st.divider()
 
     st.markdown("### Prior Questions Revisited: FY 2024–2025 Update")
     st.info(
