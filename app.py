@@ -1,6 +1,7 @@
 from pathlib import Path
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 
@@ -8,7 +9,7 @@ APP_DIR = Path(__file__).resolve().parent
 DATA_FILE = APP_DIR / "AVC_Auras_dashboard_data.xlsx"
 
 st.set_page_config(
-    page_title="AVC vs. Auras Financial Dashboard",
+    page_title="AVC vs. Auras: Comparative Financial Analysis Dashboard",
     page_icon="📊",
     layout="wide",
 )
@@ -344,6 +345,10 @@ def calculate_profitability(base: pd.DataFrame) -> pd.DataFrame:
     result["net_margin_parent"] = safe_divide(
         result["Net Income Attributable to Parent"], result["Revenue"]
     )
+    result["operating_expense_ratio"] = safe_divide(
+        result["Gross Profit"] - result["Operating Profit"],
+        result["Revenue"],
+    )
     return result
 
 
@@ -381,6 +386,41 @@ def calculate_cash_flow_quality(base: pd.DataFrame) -> pd.DataFrame:
         result["Operating Cash Flow"].ne(0)
         | result["Capital Expenditure"].ne(0)
         | result["Net Income"].ne(0)
+    )
+    return result[available].copy()
+
+
+
+def calculate_inventory_efficiency(base: pd.DataFrame) -> pd.DataFrame:
+    """Calculate inventory turnover and days using average inventory.
+
+    Because the dataset begins in FY 2024, a two-point average inventory can
+    first be calculated for FY 2025. Cost of goods sold is derived as revenue
+    minus gross profit.
+    """
+    required_accounts = ["Revenue", "Gross Profit", "Inventory"]
+    result = base.copy()
+    for account in required_accounts:
+        if account not in result.columns:
+            result[account] = 0.0
+
+    result = result.sort_values(["entity", "year"]).copy()
+    result["cost_of_goods_sold"] = result["Revenue"] - result["Gross Profit"]
+    result["prior_inventory"] = result.groupby("entity")["Inventory"].shift(1)
+    result["average_inventory"] = (
+        result["Inventory"] + result["prior_inventory"]
+    ) / 2
+    result["inventory_turnover"] = safe_divide(
+        result["cost_of_goods_sold"], result["average_inventory"]
+    )
+    result["inventory_days"] = safe_divide(
+        pd.Series(365.0, index=result.index), result["inventory_turnover"]
+    )
+
+    available = (
+        result["prior_inventory"].notna()
+        & result["inventory_turnover"].notna()
+        & result["inventory_turnover"].gt(0)
     )
     return result[available].copy()
 
@@ -627,6 +667,203 @@ def percent_change(current: float, previous: float) -> float:
     if pd.isna(current) or pd.isna(previous) or previous == 0:
         return float("nan")
     return current / previous - 1
+
+
+
+def build_margin_driver_summary(
+    profitability_data: pd.DataFrame,
+    entity: str = "AVC Consolidated",
+) -> dict:
+    """Decompose operating-margin change into gross-margin and opex effects."""
+    entity_data = (
+        profitability_data[profitability_data["entity"].eq(entity)]
+        .sort_values("year")
+        .copy()
+    )
+    if len(entity_data) < 2:
+        return {"available": False, "entity": entity}
+
+    first = entity_data.iloc[0]
+    last = entity_data.iloc[-1]
+    gross_margin_contribution = last["gross_margin"] - first["gross_margin"]
+    operating_expense_contribution = (
+        first["operating_expense_ratio"] - last["operating_expense_ratio"]
+    )
+    operating_margin_change = (
+        last["operating_margin"] - first["operating_margin"]
+    )
+
+    return {
+        "available": True,
+        "entity": entity,
+        "first_year": int(first["year"]),
+        "last_year": int(last["year"]),
+        "gross_margin_contribution": gross_margin_contribution,
+        "operating_expense_contribution": operating_expense_contribution,
+        "operating_margin_change": operating_margin_change,
+        "first_opex_ratio": first["operating_expense_ratio"],
+        "last_opex_ratio": last["operating_expense_ratio"],
+    }
+
+
+def build_inventory_insight(inventory_data: pd.DataFrame) -> dict:
+    """Build a compact FY 2025 inventory-efficiency comparison."""
+    required_entities = [
+        "AVC Consolidated",
+        "AVC Standalone",
+        "Auras Consolidated",
+    ]
+    if inventory_data.empty:
+        return {
+            "available": False,
+            "evidence": "Inventory-efficiency data are unavailable.",
+            "interpretation": "Inventory efficiency cannot be assessed reliably.",
+        }
+
+    latest_year = int(inventory_data["year"].max())
+    latest = inventory_data[inventory_data["year"].eq(latest_year)].copy()
+    if not set(required_entities).issubset(set(latest["entity"])):
+        return {
+            "available": False,
+            "year": latest_year,
+            "evidence": "Complete peer inventory observations are unavailable.",
+            "interpretation": "Inventory efficiency cannot be compared reliably.",
+        }
+
+    rows = latest.set_index("entity")
+    avc = rows.loc["AVC Consolidated"]
+    standalone = rows.loc["AVC Standalone"]
+    auras = rows.loc["Auras Consolidated"]
+
+    evidence = (
+        f"In FY {latest_year}, inventory turnover was "
+        f"{avc['inventory_turnover']:.2f}x for AVC consolidated, "
+        f"{standalone['inventory_turnover']:.2f}x for AVC standalone, and "
+        f"{auras['inventory_turnover']:.2f}x for Auras. This corresponds to "
+        f"approximately {avc['inventory_days']:.0f}, "
+        f"{standalone['inventory_days']:.0f}, and "
+        f"{auras['inventory_days']:.0f} inventory days, respectively."
+    )
+    interpretation = (
+        "AVC consolidated held inventory longer than both its standalone entity "
+        "and Auras, indicating that inventory efficiency remains a monitoring "
+        "priority despite stronger cash generation. Cross-company differences "
+        "may partly reflect business mix."
+    )
+
+    return {
+        "available": True,
+        "year": latest_year,
+        "evidence": evidence,
+        "interpretation": interpretation,
+        "avc_turnover": float(avc["inventory_turnover"]),
+        "avc_days": float(avc["inventory_days"]),
+        "standalone_turnover": float(standalone["inventory_turnover"]),
+        "standalone_days": float(standalone["inventory_days"]),
+        "auras_turnover": float(auras["inventory_turnover"]),
+        "auras_days": float(auras["inventory_days"]),
+    }
+
+
+def build_peer_scorecard(
+    profitability_data: pd.DataFrame,
+    liquidity_data: pd.DataFrame,
+) -> tuple[int | None, pd.DataFrame, str]:
+    """Create a concise AVC-versus-Auras latest-year scorecard."""
+    years = sorted(profitability_data["year"].dropna().unique().tolist())
+    if len(years) < 2:
+        return None, pd.DataFrame(), "Two years of data are required."
+
+    latest_year = int(years[-1])
+    previous_year = int(years[-2])
+    entities = ["AVC Consolidated", "Auras Consolidated"]
+
+    def get_row(data: pd.DataFrame, entity: str, year: int) -> pd.Series | None:
+        rows = data[data["entity"].eq(entity) & data["year"].eq(year)]
+        return None if rows.empty else rows.iloc[0]
+
+    avc_latest = get_row(profitability_data, entities[0], latest_year)
+    avc_previous = get_row(profitability_data, entities[0], previous_year)
+    auras_latest = get_row(profitability_data, entities[1], latest_year)
+    auras_previous = get_row(profitability_data, entities[1], previous_year)
+    avc_liquidity = get_row(liquidity_data, entities[0], latest_year)
+    auras_liquidity = get_row(liquidity_data, entities[1], latest_year)
+
+    required_rows = [
+        avc_latest,
+        avc_previous,
+        auras_latest,
+        auras_previous,
+        avc_liquidity,
+        auras_liquidity,
+    ]
+    if any(row is None for row in required_rows):
+        return latest_year, pd.DataFrame(), "Complete peer observations are unavailable."
+
+    metrics = [
+        (
+            "Revenue Growth",
+            percent_change(avc_latest["Revenue"], avc_previous["Revenue"]),
+            percent_change(auras_latest["Revenue"], auras_previous["Revenue"]),
+            "percent",
+        ),
+        (
+            "Gross Margin",
+            avc_latest["gross_margin"],
+            auras_latest["gross_margin"],
+            "percent",
+        ),
+        (
+            "Operating Margin",
+            avc_latest["operating_margin"],
+            auras_latest["operating_margin"],
+            "percent",
+        ),
+        (
+            "Net Margin (Parent)",
+            avc_latest["net_margin_parent"],
+            auras_latest["net_margin_parent"],
+            "percent",
+        ),
+        (
+            "Current Ratio",
+            avc_liquidity["current_ratio"],
+            auras_liquidity["current_ratio"],
+            "ratio",
+        ),
+    ]
+
+    rows = []
+    avc_advantages = []
+    auras_advantages = []
+    for metric, avc_value, auras_value, value_type in metrics:
+        if abs(avc_value - auras_value) < 1e-12:
+            stronger = "Tie"
+        elif avc_value > auras_value:
+            stronger = "AVC"
+            avc_advantages.append(metric)
+        else:
+            stronger = "Auras"
+            auras_advantages.append(metric)
+
+        formatter = "{:.1%}" if value_type == "percent" else "{:.2f}x"
+        rows.append(
+            {
+                "Metric": metric,
+                "AVC": formatter.format(avc_value),
+                "Auras": formatter.format(auras_value),
+                "Stronger Signal": stronger,
+            }
+        )
+
+    avc_text = ", ".join(avc_advantages)
+    auras_text = ", ".join(auras_advantages)
+    summary = (
+        f"AVC led in {avc_text}, while Auras led in {auras_text}. "
+        "The comparison suggests that AVC's advantage came primarily from "
+        "growth and operating efficiency rather than gross-margin leadership."
+    )
+    return latest_year, pd.DataFrame(rows), summary
 
 
 def build_research_answers(
@@ -972,11 +1209,18 @@ base = build_metric_base(raw)
 liquidity = calculate_liquidity(base)
 profitability = calculate_profitability(base)
 cash_flow_quality = calculate_cash_flow_quality(base)
+inventory_efficiency = calculate_inventory_efficiency(base)
 
 research_answers = build_research_answers(
     profitability,
     liquidity,
     cash_flow_quality,
+)
+margin_driver_summary = build_margin_driver_summary(profitability)
+inventory_insight = build_inventory_insight(inventory_efficiency)
+peer_year, peer_scorecard, peer_summary = build_peer_scorecard(
+    profitability,
+    liquidity,
 )
 
 
@@ -1018,9 +1262,23 @@ rq2_source = build_source_reference(
 rq3_source = build_source_reference(
     raw,
     {
-        "AVC Consolidated": ["Revenue", "Operating Profit", "Gross Profit"],
+        "AVC Consolidated": [
+            "Revenue",
+            "Gross Profit",
+            "Operating Profit",
+            "Net Income Attributable to Parent",
+            "Current Assets",
+            "Current Liabilities",
+        ],
         "AVC Standalone": ["Revenue", "Operating Profit", "Gross Profit"],
-        "Auras Consolidated": ["Revenue", "Operating Profit", "Gross Profit"],
+        "Auras Consolidated": [
+            "Revenue",
+            "Gross Profit",
+            "Operating Profit",
+            "Net Income Attributable to Parent",
+            "Current Assets",
+            "Current Liabilities",
+        ],
     },
 )
 rq4_source = build_source_reference(
@@ -1034,6 +1292,14 @@ rq4_source = build_source_reference(
             "Inventory",
             "Accounts Receivable",
         ]
+    },
+)
+inventory_source = build_source_reference(
+    raw,
+    {
+        "AVC Consolidated": ["Revenue", "Gross Profit", "Inventory"],
+        "AVC Standalone": ["Revenue", "Gross Profit", "Inventory"],
+        "Auras Consolidated": ["Revenue", "Gross Profit", "Inventory"],
     },
 )
 
@@ -1068,8 +1334,12 @@ cash_view = cash_flow_quality[
     cash_flow_quality["entity"].isin(selected_entities)
     & cash_flow_quality["year"].isin(selected_years)
 ].copy()
+inventory_view = inventory_efficiency[
+    inventory_efficiency["entity"].isin(selected_entities)
+    & inventory_efficiency["year"].isin(selected_years)
+].copy()
 
-st.title("AVC vs. Auras Financial Decision Dashboard")
+st.title("AVC vs. Auras: Comparative Financial Analysis Dashboard")
 st.caption(
     "Standalone vs. consolidated analysis and peer benchmarking, FY 2024–2025. "
     "All ratios are recalculated from the raw financial statement data in Python."
@@ -1192,8 +1462,8 @@ with tab_research:
         else research_answers["rq4"]["title"]
     )
     snapshot_peer = (
-        "Greater scale and a stronger operating margin than Auras"
-        if research_answers["rq3"]["status"] == "ANSWER: SCALE ADVANTAGE"
+        peer_summary
+        if not peer_scorecard.empty
         else research_answers["rq3"]["title"]
     )
 
@@ -1305,11 +1575,10 @@ with tab_research:
             updated_interpretation=(
                 research_answers["rq2"]["interpretation"]
                 + " Cash-flow conversion improved substantially, reducing concerns "
-                "about immediate liquidity pressure. However, inventory turnover "
-                "and receivables turnover are still required to determine whether "
-                "working-capital efficiency also improved."
+                "about immediate liquidity pressure. "
+                + inventory_insight["interpretation"]
             ),
-            source_note=rq2_source,
+            source_note=rq2_source + "; " + inventory_source,
         )
 
     prior_row2_col1, prior_row2_col2 = st.columns(2, gap="large")
@@ -1373,6 +1642,9 @@ with tab_research:
               causal effects.
             - Capital expenditure is approximated by cash paid to acquire property,
               plant and equipment.
+            - FY 2025 inventory turnover uses derived cost of goods sold and the
+              average of FY 2024 and FY 2025 year-end inventory balances; business
+              mix may affect cross-company comparability.
             """
         )
 
@@ -1547,6 +1819,21 @@ with tab_summary:
     revenue_chart.update_layout(legend_title_text="Year")
     st.plotly_chart(revenue_chart, use_container_width=True)
 
+
+    st.divider()
+    st.subheader(f"Peer Comparison Scorecard — FY {peer_year}")
+    st.caption(
+        "Fixed benchmark: AVC Consolidated vs. Auras Consolidated. The stronger-"
+        "signal column is directional and should not be interpreted as an overall "
+        "investment ranking."
+    )
+    if peer_scorecard.empty:
+        st.info(peer_summary)
+    else:
+        st.dataframe(peer_scorecard, use_container_width=True, hide_index=True)
+        st.info(peer_summary)
+        st.caption(rq3_source)
+
 with tab_liquidity:
     st.subheader("Liquidity Ratios")
 
@@ -1607,6 +1894,95 @@ with tab_liquidity:
 with tab_profitability:
     st.subheader("Profitability Analysis")
 
+    st.markdown("### Operating Margin Driver Analysis")
+    st.caption(
+        "The bridge decomposes the FY 2024–2025 operating-margin change into "
+        "gross-margin improvement and the effect of the operating-expense ratio."
+    )
+
+    driver_entities = [
+        entity
+        for entity, group in profitability.groupby("entity")
+        if len(group.sort_values("year")) >= 2
+    ]
+    default_driver_index = (
+        driver_entities.index("AVC Consolidated")
+        if "AVC Consolidated" in driver_entities
+        else 0
+    )
+    driver_entity = st.selectbox(
+        "Entity for margin bridge",
+        options=driver_entities,
+        index=default_driver_index,
+        key="margin_driver_entity",
+    )
+    driver = build_margin_driver_summary(profitability, driver_entity)
+
+    if driver["available"]:
+        driver_kpis = st.columns(3, gap="large")
+        driver_kpis[0].metric(
+            "Gross Margin Contribution",
+            f"{driver['gross_margin_contribution'] * 100:+.1f} pp",
+        )
+        driver_kpis[1].metric(
+            "Operating Expense Efficiency",
+            f"{driver['operating_expense_contribution'] * 100:+.1f} pp",
+        )
+        driver_kpis[2].metric(
+            "Operating Margin Change",
+            f"{driver['operating_margin_change'] * 100:+.1f} pp",
+        )
+
+        driver_chart = go.Figure(
+            go.Waterfall(
+                orientation="v",
+                measure=["relative", "relative", "total"],
+                x=[
+                    "Gross margin movement",
+                    "Operating-expense-ratio movement",
+                    "Operating margin change",
+                ],
+                y=[
+                    driver["gross_margin_contribution"],
+                    driver["operating_expense_contribution"],
+                    0,
+                ],
+                text=[
+                    f"{driver['gross_margin_contribution'] * 100:+.1f} pp",
+                    f"{driver['operating_expense_contribution'] * 100:+.1f} pp",
+                    f"{driver['operating_margin_change'] * 100:+.1f} pp",
+                ],
+                textposition="outside",
+            )
+        )
+        driver_chart.update_layout(
+            title=(
+                f"{driver_entity}: Operating Margin Bridge, "
+                f"FY {driver['first_year']}–{driver['last_year']}"
+            ),
+            showlegend=False,
+            yaxis_title="Change in operating margin",
+        )
+        driver_chart.update_yaxes(tickformat=".1%")
+        st.plotly_chart(driver_chart, use_container_width=True)
+
+        st.info(
+            f"{driver_entity}'s operating margin changed "
+            f"{driver['operating_margin_change'] * 100:+.1f} pp. Gross-margin "
+            f"movement contributed {driver['gross_margin_contribution'] * 100:+.1f} "
+            f"pp, while the operating-expense-ratio movement contributed "
+            f"{driver['operating_expense_contribution'] * 100:+.1f} pp."
+        )
+        st.caption(
+            "Operating Expense Ratio = (Gross Profit − Operating Profit) / Revenue. "
+            "A decline in this ratio contributes positively to operating margin."
+        )
+    else:
+        st.info("Two years of profitability data are required for the margin bridge.")
+
+    st.divider()
+    st.markdown("### Margin and EPS Comparison")
+
     margin_long = prof_view.melt(
         id_vars=["entity", "year"],
         value_vars=["gross_margin", "operating_margin", "net_margin_parent"],
@@ -1657,6 +2033,7 @@ with tab_profitability:
             "gross_margin",
             "operating_margin",
             "net_margin_parent",
+            "operating_expense_ratio",
         ]
     ].sort_values(["entity", "year"])
     st.dataframe(
@@ -1670,6 +2047,7 @@ with tab_profitability:
                 "gross_margin": "{:.2%}",
                 "operating_margin": "{:.2%}",
                 "net_margin_parent": "{:.2%}",
+                "operating_expense_ratio": "{:.2%}",
             }
         ),
         use_container_width=True,
@@ -1889,18 +2267,90 @@ with tab_cash_flow:
             "Positive capital expenditure values represent cash outflows."
         )
 
+    st.divider()
+    st.markdown("### Inventory Efficiency")
+    st.caption(
+        "FY 2025 inventory turnover uses FY 2025 cost of goods sold and average "
+        "inventory based on FY 2024 and FY 2025 year-end balances."
+    )
+
+    if inventory_efficiency.empty:
+        st.info("Inventory-efficiency metrics are unavailable.")
+    else:
+        inventory_latest_year = int(inventory_efficiency["year"].max())
+        inventory_benchmark = inventory_efficiency[
+            inventory_efficiency["year"].eq(inventory_latest_year)
+        ].sort_values("inventory_days")
+
+        inventory_chart = px.bar(
+            inventory_benchmark,
+            x="entity",
+            y="inventory_days",
+            text_auto=".0f",
+            labels={
+                "entity": "Entity",
+                "inventory_days": "Inventory Days",
+            },
+            title=f"Inventory Days — FY {inventory_latest_year} (Lower Is Faster)",
+        )
+        st.plotly_chart(inventory_chart, use_container_width=True)
+
+        inventory_table = inventory_benchmark[
+            [
+                "entity",
+                "year",
+                "cost_of_goods_sold",
+                "average_inventory",
+                "inventory_turnover",
+                "inventory_days",
+            ]
+        ].copy()
+        st.dataframe(
+            inventory_table.style.format(
+                {
+                    "cost_of_goods_sold": "{:,.0f}",
+                    "average_inventory": "{:,.0f}",
+                    "inventory_turnover": "{:.2f}x",
+                    "inventory_days": "{:.0f} days",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.info(inventory_insight["interpretation"])
+        st.caption(inventory_insight["evidence"])
+        st.caption(inventory_source)
+        st.caption(
+            "Cross-company comparisons may be affected by differences in product "
+            "mix, production model, and supply-chain strategy."
+        )
+
 with tab_memo:
     st.header("Decision Memo")
     st.caption("AVC consolidated financial performance, FY 2024–2025")
 
     with st.container(border=True):
         st.markdown("### Executive Assessment")
-        st.markdown(
-            "AVC's FY 2025 expansion was accompanied by **stronger profitability**, "
-            "**substantially improved cash generation**, and **broadly stable "
-            "short-term liquidity**. The slight decline in the current ratio should "
-            "continue to be monitored."
-        )
+        if margin_driver_summary["available"] and inventory_insight["available"]:
+            st.markdown(
+                f"AVC's FY 2025 expansion translated into **stronger profitability** "
+                f"and **substantially improved cash generation**. The "
+                f"{margin_driver_summary['operating_margin_change'] * 100:.1f}-pp "
+                f"operating-margin expansion was supported by both gross-margin "
+                f"improvement ({margin_driver_summary['gross_margin_contribution'] * 100:+.1f} "
+                f"pp) and a lower operating-expense ratio "
+                f"({margin_driver_summary['operating_expense_contribution'] * 100:+.1f} "
+                f"pp). Short-term liquidity remained broadly stable, but AVC's "
+                f"inventory holding period of approximately "
+                f"{inventory_insight['avc_days']:.0f} days remained longer than "
+                f"Auras's {inventory_insight['auras_days']:.0f} days."
+            )
+        else:
+            st.markdown(
+                "AVC's FY 2025 expansion was accompanied by stronger profitability, "
+                "substantially improved cash generation, and broadly stable "
+                "short-term liquidity."
+            )
 
     observation_col, interpretation_col = st.columns(2, gap="large")
 
@@ -1908,11 +2358,23 @@ with tab_memo:
         with st.container(border=True):
             st.markdown("### 1. Key Observations")
 
-            st.markdown("**Profitability**")
+            st.markdown("**Profitability and Margin Drivers**")
             st.write(research_answers["rq1"]["evidence"])
+            if margin_driver_summary["available"]:
+                st.write(
+                    f"Gross-margin movement contributed "
+                    f"{margin_driver_summary['gross_margin_contribution'] * 100:+.1f} "
+                    f"pp and operating-expense efficiency contributed "
+                    f"{margin_driver_summary['operating_expense_contribution'] * 100:+.1f} "
+                    f"pp to the operating-margin change."
+                )
 
-            st.markdown("**Liquidity**")
+            st.markdown("**Peer Benchmark**")
+            st.write(peer_summary)
+
+            st.markdown("**Liquidity and Inventory Efficiency**")
             st.write(research_answers["rq2"]["evidence"])
+            st.write(inventory_insight["evidence"])
 
             st.markdown("**Cash Flow Quality**")
             st.write(research_answers["rq4"]["evidence"])
@@ -1922,10 +2384,21 @@ with tab_memo:
             st.markdown("### 2. Interpretation")
 
             st.markdown("**Profitability**")
-            st.write(research_answers["rq1"]["interpretation"])
+            st.write(
+                "AVC's margin expansion was not driven by a single factor: both "
+                "gross-margin improvement and operating-expense efficiency "
+                "supported the increase in operating profitability."
+            )
 
-            st.markdown("**Liquidity**")
-            st.write(research_answers["rq2"]["interpretation"])
+            st.markdown("**Peer Positioning**")
+            st.write(
+                "AVC's advantage appears to come from scale, growth, and "
+                "operating-expense efficiency, while Auras retained stronger gross "
+                "margin and current-ratio signals."
+            )
+
+            st.markdown("**Working Capital**")
+            st.write(inventory_insight["interpretation"])
 
             st.markdown("**Cash Flow Quality**")
             st.write(research_answers["rq4"]["interpretation"])
@@ -1938,9 +2411,8 @@ with tab_memo:
             st.markdown(
                 """
                 - The analysis covers only two fiscal years.
+                - AVC consolidated inventory days remain higher than the peer benchmark.
                 - Future expansion may require substantial capital expenditure.
-                - Inventory and accounts receivable may place pressure on
-                  working-capital requirements.
                 - Customer concentration and industry-cycle exposure are outside
                   the current dataset and require separate analysis.
                 - A single peer company cannot represent the entire industry.
@@ -1952,10 +2424,10 @@ with tab_memo:
             st.markdown("### 4. Recommended Monitoring")
             st.markdown(
                 """
-                - Monitor operating cash flow relative to net income.
-                - Track inventory and accounts-receivable growth.
+                - Track whether gross-margin gains and operating-expense efficiency persist.
+                - Monitor inventory turnover, inventory days, and receivables growth.
                 - Review current and quick ratios during continued expansion.
-                - Evaluate returns generated by future capital expenditure.
+                - Monitor operating cash flow relative to net income.
                 - Expand the dataset to additional years and peer companies.
                 """
             )
@@ -1970,6 +2442,7 @@ with tab_memo:
     with source_col2:
         st.caption(rq3_source)
         st.caption(rq4_source)
+        st.caption(inventory_source)
 
     st.info(
         "This dashboard is an academic financial analysis. The findings are "
@@ -2021,7 +2494,7 @@ with tab_methodology:
         ),
         (
             "4. Python Calculations",
-            "Recalculate ratios, growth rates, and cash-flow metrics.",
+            "Recalculate ratios, growth rates, margin drivers, cash-flow, and inventory metrics.",
         ),
         (
             "5. Interpretation",
@@ -2048,7 +2521,14 @@ with tab_methodology:
             **Profitability**
             - Gross Margin = Gross Profit / Revenue
             - Operating Margin = Operating Profit / Revenue
+            - Operating Expense Ratio = (Gross Profit − Operating Profit) / Revenue
             - Net Margin (Parent) = Net Income Attributable to Parent / Revenue
+
+            **Inventory efficiency**
+            - Cost of Goods Sold = Revenue − Gross Profit
+            - Average Inventory = (Prior-year Inventory + Current-year Inventory) / 2
+            - Inventory Turnover = Cost of Goods Sold / Average Inventory
+            - Inventory Days = 365 / Inventory Turnover
 
             **Cash-flow quality**
             - Cash Conversion Ratio = Operating Cash Flow / Net Income
